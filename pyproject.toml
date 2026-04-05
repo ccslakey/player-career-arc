@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "career-arc-visualizer"
+version = "0.1.0"
+description = "Starter pipeline and Observable app for visualizing MLB career arcs."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "pybaseball>=2.2.7",
+  "pandas>=2.2.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+

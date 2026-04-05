@@ -1,0 +1,1038 @@
+{
+  "metadata": {
+    "generated_at": "2026-04-05T18:25:06.124683+00:00",
+    "source": "pybaseball",
+    "metrics": [
+      {
+        "key": "avg",
+        "label": "Batting Avg",
+        "format": "average"
+      },
+      {
+        "key": "hr",
+        "label": "Home Runs",
+        "format": "integer"
+      },
+      {
+        "key": "rbi",
+        "label": "RBI",
+        "format": "integer"
+      },
+      {
+        "key": "ops",
+        "label": "OPS",
+        "format": "average"
+      },
+      {
+        "key": "war",
+        "label": "WAR",
+        "format": "decimal"
+      },
+      {
+        "key": "era",
+        "label": "ERA",
+        "format": "average"
+      },
+      {
+        "key": "strikeouts",
+        "label": "Strikeouts",
+        "format": "integer"
+      },
+      {
+        "key": "whip",
+        "label": "WHIP",
+        "format": "average"
+      }
+    ],
+    "notes": [
+      "Team-change events are inferred season to season from the player team field.",
+      "Injury notes and other context can be added through the annotation CSV.",
+      "Strikeouts mean batter strikeouts for hitters and pitcher strikeouts for pitchers."
+    ]
+  },
+  "players": [
+    {
+      "player_key": "mike-trout",
+      "name": "Mike Trout",
+      "fangraphs_id": 10155,
+      "mlbam_id": 545361,
+      "seasons": [
+        {
+          "player_name": "Mike Trout",
+          "year": 2012,
+          "player_type": "hitter",
+          "team": "LAA",
+          "teams": [
+            "LAA"
+          ],
+          "stats": {
+            "avg": 0.326,
+            "hr": 30,
+            "rbi": 83,
+            "ops": 0.963,
+            "war": 10.1,
+            "era": null,
+            "strikeouts": 139,
+            "whip": null
+          },
+          "events": [],
+          "summary": "In 2012, Mike Trout suited up for LAA as a hitter. Key numbers: AVG 0.326, OPS 0.963, HR 30, RBI 83, WAR 10.100."
+        },
+        {
+          "player_name": "Mike Trout",
+          "year": 2013,
+          "player_type": "hitter",
+          "team": "LAA",
+          "teams": [
+            "LAA"
+          ],
+          "stats": {
+            "avg": 0.323,
+            "hr": 27,
+            "rbi": 97,
+            "ops": 0.988,
+            "war": 10.1,
+            "era": null,
+            "strikeouts": 136,
+            "whip": null
+          },
+          "events": [],
+          "summary": "In 2013, Mike Trout suited up for LAA as a hitter. Key numbers: AVG 0.323, OPS 0.988, HR 27, RBI 97, WAR 10.100."
+        },
+        {
+          "player_name": "Mike Trout",
+          "year": 2014,
+          "player_type": "hitter",
+          "team": "LAA",
+          "teams": [
+            "LAA"
+          ],
+          "stats": {
+            "avg": 0.287,
+            "hr": 36,
+            "rbi": 111,
+            "ops": 0.939,
+            "war": 8.3,
+            "era": null,
+            "strikeouts": 184,
+            "whip": null
+          },
+          "events": [],
+          "summary": "In 2014, Mike Trout suited up for LAA as a hitter. Key numbers: AVG 0.287, OPS 0.939, HR 36, RBI 111, WAR 8.300."
+        },
+        {
+          "player_name": "Mike Trout",
+          "year": 2015,
+          "player_type": "hitter",
+          "team": "LAA",
+          "teams": [
+            "LAA"
+          ],
+          "stats": {
+            "avg": 0.299,
+            "hr": 41,
+            "rbi": 90,
+            "ops": 0.991,
+            "war": 9.3,
+            "era": null,
+            "strikeouts": 158,
+            "whip": null
+          },
+          "events": [],
+          "summary": "In 2015, Mike Trout suited up for LAA as a hitter. Key numbers: AVG 0.299, OPS 0.991, HR 41, RBI 90, WAR 9.300."
+        },
+        {
+          "player_name": "Mike Trout",
+          "year": 2016,
+          "player_type": "hitter",
+          "team": "LAA",
+          "teams": [
+            "LAA"
+          ],
+          "stats": {
+            "avg": 0.315,
+            "hr": 29,
+            "rbi": 100,
+            "ops": 0.991,
+            "war": 8.6,
+            "era": null,
+            "strikeouts": 137,
+            "whip": null
+          },
+          "events": [],
+          "summary": "In 2016, Mike Trout suited up for LAA as a hitter. Key numbers: AVG 0.315, OPS 0.991, HR 29, RBI 100, WAR 8.600."
+        },
+        {
+          "player_name": "Mike Trout",
+          "year": 2017,
+          "player_type": "hitter",
+          "team": "LAA",
+          "teams": [
+            "LAA"
+          ],
+          "stats": {
+            "avg": 0.306,
+            "hr": 33,
+            "rbi": 72,
+            "ops": 1.071,
+            "war": 6.8,
+            "era": null,
+            "strikeouts": 90,
+            "whip": null
+          },
+          "events": [
+            {
+              "type": "injury",
+              "label": "Thumb surgery",
+              "note": "Missed time after tearing a ligament in his left thumb."
+            }
+          ],
+          "summary": "In 2017, Mike Trout suited up for LAA as a hitter. Key numbers: AVG 0.306, OPS 1.071, HR 33, RBI 72, WAR 6.800. Notable context: Thumb surgery."
+        },
+        {
+          "player_name": "Mike Trout",
+          "year": 2018,
+          "player_type": "hitter",
+          "team": "LAA",
+          "teams": [
+            "LAA"
+          ],
+          "stats": {
+            "avg": 0.312,
+            "hr": 39,
+            "rbi": 79,
+            "ops": 1.088,
+            "war": 9.4,
+            "era": null,
+            "strikeouts": 124,
+            "whip": null
+          },
+          "events": [],
+          "summary": "In 2018, Mike Trout suited up for LAA as a hitter. Key numbers: AVG 0.312, OPS 1.088, HR 39, RBI 79, WAR 9.400."
+        },
+        {
+          "player_name": "Mike Trout",
+          "year": 2019,
+          "player_type": "hitter",
+          "team": "LAA",
+          "teams": [
+            "LAA"
+          ],
+          "stats": {
+            "avg": 0.291,
+            "hr": 45,
+            "rbi": 104,
+            "ops": 1.083,
+            "war": 7.6,
+            "era": null,
+            "strikeouts": 120,
+            "whip": null
+          },
+          "events": [],
+          "summary": "In 2019, Mike Trout suited up for LAA as a hitter. Key numbers: AVG 0.291, OPS 1.083, HR 45, RBI 104, WAR 7.600."
+        },
+        {
+          "player_name": "Mike Trout",
+          "year": 2020,
+          "player_type": "hitter",
+          "team": "LAA",
+          "teams": [
+            "LAA"
+          ],
+          "stats": {
+            "avg": 0.281,
+            "hr": 17,
+            "rbi": 46,
+            "ops": 0.993,
+            "war": 2.4,
+            "era": null,
+            "strikeouts": 56,
+            "whip": null
+          },
+          "events": [],
+          "summary": "In 2020, Mike Trout suited up for LAA as a hitter. Key numbers: AVG 0.281, OPS 0.993, HR 17, RBI 46, WAR 2.400."
+        },
+        {
+          "player_name": "Mike Trout",
+          "year": 2021,
+          "player_type": "hitter",
+          "team": "LAA",
+          "teams": [
+            "LAA"
+          ],
+          "stats": {
+            "avg": 0.333,
+            "hr": 8,
+            "rbi": 18,
+            "ops": 1.09,
+            "war": 2.1,
+            "era": null,
+            "strikeouts": 41,
+            "whip": null
+          },
+          "events": [
+            {
+              "type": "injury",
+              "label": "Calf strain",
+              "note": "Lost much of the season to a persistent calf injury."
+            }
+          ],
+          "summary": "In 2021, Mike Trout suited up for LAA as a hitter. Key numbers: AVG 0.333, OPS 1.090, HR 8, RBI 18, WAR 2.100. Notable context: Calf strain."
+        },
+        {
+          "player_name": "Mike Trout",
+          "year": 2022,
+          "player_type": "hitter",
+          "team": "LAA",
+          "teams": [
+            "LAA"
+          ],
+          "stats": {
+            "avg": 0.283,
+            "hr": 40,
+            "rbi": 80,
+            "ops": 0.999,
+            "war": 6.0,
+            "era": null,
+            "strikeouts": 139,
+            "whip": null
+          },
+          "events": [],
+          "summary": "In 2022, Mike Trout suited up for LAA as a hitter. Key numbers: AVG 0.283, OPS 0.999, HR 40, RBI 80, WAR 6.000."
+        },
+        {
+          "player_name": "Mike Trout",
+          "year": 2023,
+          "player_type": "hitter",
+          "team": "LAA",
+          "teams": [
+            "LAA"
+          ],
+          "stats": {
+            "avg": 0.263,
+            "hr": 18,
+            "rbi": 44,
+            "ops": 0.858,
+            "war": 2.9,
+            "era": null,
+            "strikeouts": 104,
+            "whip": null
+          },
+          "events": [],
+          "summary": "In 2023, Mike Trout suited up for LAA as a hitter. Key numbers: AVG 0.263, OPS 0.858, HR 18, RBI 44, WAR 2.900."
+        },
+        {
+          "player_name": "Mike Trout",
+          "year": 2024,
+          "player_type": "hitter",
+          "team": "LAA",
+          "teams": [
+            "LAA"
+          ],
+          "stats": {
+            "avg": 0.22,
+            "hr": 10,
+            "rbi": 14,
+            "ops": 0.867,
+            "war": 0.9,
+            "era": null,
+            "strikeouts": 27,
+            "whip": null
+          },
+          "events": [],
+          "summary": "In 2024, Mike Trout suited up for LAA as a hitter. Key numbers: AVG 0.220, OPS 0.867, HR 10, RBI 14, WAR 0.900."
+        },
+        {
+          "player_name": "Mike Trout",
+          "year": 2025,
+          "player_type": "hitter",
+          "team": "LAA",
+          "teams": [
+            "LAA"
+          ],
+          "stats": {
+            "avg": 0.232,
+            "hr": 26,
+            "rbi": 64,
+            "ops": 0.797,
+            "war": 1.8,
+            "era": null,
+            "strikeouts": 178,
+            "whip": null
+          },
+          "events": [],
+          "summary": "In 2025, Mike Trout suited up for LAA as a hitter. Key numbers: AVG 0.232, OPS 0.797, HR 26, RBI 64, WAR 1.800."
+        }
+      ]
+    },
+    {
+      "player_key": "clayton-kershaw",
+      "name": "Clayton Kershaw",
+      "fangraphs_id": 2036,
+      "mlbam_id": 477132,
+      "seasons": [
+        {
+          "player_name": "Clayton Kershaw",
+          "year": 2008,
+          "player_type": "two_way",
+          "team": "LAD",
+          "teams": [
+            "LAD"
+          ],
+          "stats": {
+            "avg": 0.069,
+            "hr": 0,
+            "rbi": 0,
+            "ops": 0.138,
+            "war": 1.0,
+            "era": 4.26,
+            "strikeouts": 100,
+            "whip": 1.5
+          },
+          "events": [],
+          "summary": "In 2008, Clayton Kershaw suited up for LAD as a two_way. Key numbers: AVG 0.069, OPS 0.138, HR 0, RBI 0, WAR 1.000."
+        },
+        {
+          "player_name": "Clayton Kershaw",
+          "year": 2009,
+          "player_type": "two_way",
+          "team": "LAD",
+          "teams": [
+            "LAD"
+          ],
+          "stats": {
+            "avg": 0.104,
+            "hr": 0,
+            "rbi": 2,
+            "ops": 0.261,
+            "war": 3.9999999999999996,
+            "era": 2.79,
+            "strikeouts": 185,
+            "whip": 1.23
+          },
+          "events": [],
+          "summary": "In 2009, Clayton Kershaw suited up for LAD as a two_way. Key numbers: AVG 0.104, OPS 0.261, HR 0, RBI 2, WAR 4.000."
+        },
+        {
+          "player_name": "Clayton Kershaw",
+          "year": 2010,
+          "player_type": "two_way",
+          "team": "LAD",
+          "teams": [
+            "LAD"
+          ],
+          "stats": {
+            "avg": 0.055,
+            "hr": 0,
+            "rbi": 1,
+            "ops": 0.126,
+            "war": 3.9999999999999996,
+            "era": 2.91,
+            "strikeouts": 212,
+            "whip": 1.18
+          },
+          "events": [],
+          "summary": "In 2010, Clayton Kershaw suited up for LAD as a two_way. Key numbers: AVG 0.055, OPS 0.126, HR 0, RBI 1, WAR 4.000."
+        },
+        {
+          "player_name": "Clayton Kershaw",
+          "year": 2011,
+          "player_type": "two_way",
+          "team": "LAD",
+          "teams": [
+            "LAD"
+          ],
+          "stats": {
+            "avg": 0.225,
+            "hr": 0,
+            "rbi": 4,
+            "ops": 0.492,
+            "war": 7.8,
+            "era": 2.28,
+            "strikeouts": 248,
+            "whip": 0.98
+          },
+          "events": [],
+          "summary": "In 2011, Clayton Kershaw suited up for LAD as a two_way. Key numbers: AVG 0.225, OPS 0.492, HR 0, RBI 4, WAR 7.800."
+        },
+        {
+          "player_name": "Clayton Kershaw",
+          "year": 2012,
+          "player_type": "two_way",
+          "team": "LAD",
+          "teams": [
+            "LAD"
+          ],
+          "stats": {
+            "avg": 0.207,
+            "hr": 0,
+            "rbi": 2,
+            "ops": 0.454,
+            "war": 6.3999999999999995,
+            "era": 2.53,
+            "strikeouts": 229,
+            "whip": 1.02
+          },
+          "events": [],
+          "summary": "In 2012, Clayton Kershaw suited up for LAD as a two_way. Key numbers: AVG 0.207, OPS 0.454, HR 0, RBI 2, WAR 6.400."
+        },
+        {
+          "player_name": "Clayton Kershaw",
+          "year": 2013,
+          "player_type": "two_way",
+          "team": "LAD",
+          "teams": [
+            "LAD"
+          ],
+          "stats": {
+            "avg": 0.182,
+            "hr": 1,
+            "rbi": 10,
+            "ops": 0.501,
+            "war": 7.8,
+            "era": 1.83,
+            "strikeouts": 232,
+            "whip": 0.92
+          },
+          "events": [],
+          "summary": "In 2013, Clayton Kershaw suited up for LAD as a two_way. Key numbers: AVG 0.182, OPS 0.501, HR 1, RBI 10, WAR 7.800."
+        },
+        {
+          "player_name": "Clayton Kershaw",
+          "year": 2014,
+          "player_type": "two_way",
+          "team": "LAD",
+          "teams": [
+            "LAD"
+          ],
+          "stats": {
+            "avg": 0.175,
+            "hr": 0,
+            "rbi": 3,
+            "ops": 0.442,
+            "war": 8.4,
+            "era": 1.77,
+            "strikeouts": 239,
+            "whip": 0.86
+          },
+          "events": [],
+          "summary": "In 2014, Clayton Kershaw suited up for LAD as a two_way. Key numbers: AVG 0.175, OPS 0.442, HR 0, RBI 3, WAR 8.400."
+        },
+        {
+          "player_name": "Clayton Kershaw",
+          "year": 2015,
+          "player_type": "two_way",
+          "team": "LAD",
+          "teams": [
+            "LAD"
+          ],
+          "stats": {
+            "avg": 0.127,
+            "hr": 0,
+            "rbi": 2,
+            "ops": 0.317,
+            "war": 8.6,
+            "era": 2.13,
+            "strikeouts": 301,
+            "whip": 0.88
+          },
+          "events": [],
+          "summary": "In 2015, Clayton Kershaw suited up for LAD as a two_way. Key numbers: AVG 0.127, OPS 0.317, HR 0, RBI 2, WAR 8.600."
+        },
+        {
+          "player_name": "Clayton Kershaw",
+          "year": 2016,
+          "player_type": "two_way",
+          "team": "LAD",
+          "teams": [
+            "LAD"
+          ],
+          "stats": {
+            "avg": 0.174,
+            "hr": 0,
+            "rbi": 3,
+            "ops": 0.387,
+            "war": 6.2,
+            "era": 1.69,
+            "strikeouts": 172,
+            "whip": 0.72
+          },
+          "events": [
+            {
+              "type": "injury",
+              "label": "Back issue",
+              "note": "Back trouble disrupted his workload and innings total."
+            }
+          ],
+          "summary": "In 2016, Clayton Kershaw suited up for LAD as a two_way. Key numbers: AVG 0.174, OPS 0.387, HR 0, RBI 3, WAR 6.200. Notable context: Back issue."
+        },
+        {
+          "player_name": "Clayton Kershaw",
+          "year": 2017,
+          "player_type": "two_way",
+          "team": "LAD",
+          "teams": [
+            "LAD"
+          ],
+          "stats": {
+            "avg": 0.184,
+            "hr": 0,
+            "rbi": 2,
+            "ops": 0.449,
+            "war": 4.6,
+            "era": 2.31,
+            "strikeouts": 202,
+            "whip": 0.95
+          },
+          "events": [],
+          "summary": "In 2017, Clayton Kershaw suited up for LAD as a two_way. Key numbers: AVG 0.184, OPS 0.449, HR 0, RBI 2, WAR 4.600."
+        },
+        {
+          "player_name": "Clayton Kershaw",
+          "year": 2018,
+          "player_type": "two_way",
+          "team": "LAD",
+          "teams": [
+            "LAD"
+          ],
+          "stats": {
+            "avg": 0.239,
+            "hr": 0,
+            "rbi": 7,
+            "ops": 0.622,
+            "war": 4.0,
+            "era": 2.73,
+            "strikeouts": 155,
+            "whip": 1.04
+          },
+          "events": [],
+          "summary": "In 2018, Clayton Kershaw suited up for LAD as a two_way. Key numbers: AVG 0.239, OPS 0.622, HR 0, RBI 7, WAR 4.000."
+        },
+        {
+          "player_name": "Clayton Kershaw",
+          "year": 2019,
+          "player_type": "two_way",
+          "team": "LAD",
+          "teams": [
+            "LAD"
+          ],
+          "stats": {
+            "avg": 0.102,
+            "hr": 0,
+            "rbi": 1,
+            "ops": 0.242,
+            "war": 3.3000000000000003,
+            "era": 3.03,
+            "strikeouts": 189,
+            "whip": 1.04
+          },
+          "events": [],
+          "summary": "In 2019, Clayton Kershaw suited up for LAD as a two_way. Key numbers: AVG 0.102, OPS 0.242, HR 0, RBI 1, WAR 3.300."
+        },
+        {
+          "player_name": "Clayton Kershaw",
+          "year": 2020,
+          "player_type": "pitcher",
+          "team": "LAD",
+          "teams": [
+            "LAD"
+          ],
+          "stats": {
+            "avg": null,
+            "hr": null,
+            "rbi": null,
+            "ops": null,
+            "war": 1.4,
+            "era": 2.16,
+            "strikeouts": 62,
+            "whip": 0.84
+          },
+          "events": [],
+          "summary": "In 2020, Clayton Kershaw suited up for LAD as a pitcher. Key numbers: ERA 2.160, WHIP 0.840, SO 62, WAR 1.400."
+        },
+        {
+          "player_name": "Clayton Kershaw",
+          "year": 2021,
+          "player_type": "two_way",
+          "team": "LAD",
+          "teams": [
+            "LAD"
+          ],
+          "stats": {
+            "avg": 0.222,
+            "hr": 0,
+            "rbi": 3,
+            "ops": 0.465,
+            "war": 3.6,
+            "era": 3.55,
+            "strikeouts": 144,
+            "whip": 1.02
+          },
+          "events": [],
+          "summary": "In 2021, Clayton Kershaw suited up for LAD as a two_way. Key numbers: AVG 0.222, OPS 0.465, HR 0, RBI 3, WAR 3.600."
+        },
+        {
+          "player_name": "Clayton Kershaw",
+          "year": 2022,
+          "player_type": "pitcher",
+          "team": "LAD",
+          "teams": [
+            "LAD"
+          ],
+          "stats": {
+            "avg": null,
+            "hr": null,
+            "rbi": null,
+            "ops": null,
+            "war": 3.9,
+            "era": 2.28,
+            "strikeouts": 137,
+            "whip": 0.94
+          },
+          "events": [],
+          "summary": "In 2022, Clayton Kershaw suited up for LAD as a pitcher. Key numbers: ERA 2.280, WHIP 0.940, SO 137, WAR 3.900."
+        },
+        {
+          "player_name": "Clayton Kershaw",
+          "year": 2023,
+          "player_type": "pitcher",
+          "team": "LAD",
+          "teams": [
+            "LAD"
+          ],
+          "stats": {
+            "avg": null,
+            "hr": null,
+            "rbi": null,
+            "ops": null,
+            "war": 2.4,
+            "era": 2.46,
+            "strikeouts": 137,
+            "whip": 1.06
+          },
+          "events": [
+            {
+              "type": "injury",
+              "label": "Shoulder surgery",
+              "note": "Underwent shoulder surgery after the season."
+            }
+          ],
+          "summary": "In 2023, Clayton Kershaw suited up for LAD as a pitcher. Key numbers: ERA 2.460, WHIP 1.060, SO 137, WAR 2.400. Notable context: Shoulder surgery."
+        },
+        {
+          "player_name": "Clayton Kershaw",
+          "year": 2024,
+          "player_type": "pitcher",
+          "team": "LAD",
+          "teams": [
+            "LAD"
+          ],
+          "stats": {
+            "avg": null,
+            "hr": null,
+            "rbi": null,
+            "ops": null,
+            "war": 0.7,
+            "era": 4.5,
+            "strikeouts": 24,
+            "whip": 1.5
+          },
+          "events": [],
+          "summary": "In 2024, Clayton Kershaw suited up for LAD as a pitcher. Key numbers: ERA 4.500, WHIP 1.500, SO 24, WAR 0.700."
+        },
+        {
+          "player_name": "Clayton Kershaw",
+          "year": 2025,
+          "player_type": "pitcher",
+          "team": "LAD",
+          "teams": [
+            "LAD"
+          ],
+          "stats": {
+            "avg": null,
+            "hr": null,
+            "rbi": null,
+            "ops": null,
+            "war": 2.5,
+            "era": 3.36,
+            "strikeouts": 84,
+            "whip": 1.22
+          },
+          "events": [],
+          "summary": "In 2025, Clayton Kershaw suited up for LAD as a pitcher. Key numbers: ERA 3.360, WHIP 1.220, SO 84, WAR 2.500."
+        }
+      ]
+    },
+    {
+      "player_key": "mookie-betts",
+      "name": "Mookie Betts",
+      "fangraphs_id": 13611,
+      "mlbam_id": 605141,
+      "seasons": [
+        {
+          "player_name": "Mookie Betts",
+          "year": 2014,
+          "player_type": "hitter",
+          "team": "BOS",
+          "teams": [
+            "BOS"
+          ],
+          "stats": {
+            "avg": 0.291,
+            "hr": 5,
+            "rbi": 18,
+            "ops": 0.812,
+            "war": 1.8,
+            "era": null,
+            "strikeouts": 31,
+            "whip": null
+          },
+          "events": [],
+          "summary": "In 2014, Mookie Betts suited up for BOS as a hitter. Key numbers: AVG 0.291, OPS 0.812, HR 5, RBI 18, WAR 1.800."
+        },
+        {
+          "player_name": "Mookie Betts",
+          "year": 2015,
+          "player_type": "hitter",
+          "team": "BOS",
+          "teams": [
+            "BOS"
+          ],
+          "stats": {
+            "avg": 0.291,
+            "hr": 18,
+            "rbi": 77,
+            "ops": 0.82,
+            "war": 4.8,
+            "era": null,
+            "strikeouts": 82,
+            "whip": null
+          },
+          "events": [],
+          "summary": "In 2015, Mookie Betts suited up for BOS as a hitter. Key numbers: AVG 0.291, OPS 0.820, HR 18, RBI 77, WAR 4.800."
+        },
+        {
+          "player_name": "Mookie Betts",
+          "year": 2016,
+          "player_type": "hitter",
+          "team": "BOS",
+          "teams": [
+            "BOS"
+          ],
+          "stats": {
+            "avg": 0.318,
+            "hr": 31,
+            "rbi": 113,
+            "ops": 0.897,
+            "war": 7.4,
+            "era": null,
+            "strikeouts": 80,
+            "whip": null
+          },
+          "events": [],
+          "summary": "In 2016, Mookie Betts suited up for BOS as a hitter. Key numbers: AVG 0.318, OPS 0.897, HR 31, RBI 113, WAR 7.400."
+        },
+        {
+          "player_name": "Mookie Betts",
+          "year": 2017,
+          "player_type": "hitter",
+          "team": "BOS",
+          "teams": [
+            "BOS"
+          ],
+          "stats": {
+            "avg": 0.264,
+            "hr": 24,
+            "rbi": 102,
+            "ops": 0.803,
+            "war": 4.6,
+            "era": null,
+            "strikeouts": 79,
+            "whip": null
+          },
+          "events": [],
+          "summary": "In 2017, Mookie Betts suited up for BOS as a hitter. Key numbers: AVG 0.264, OPS 0.803, HR 24, RBI 102, WAR 4.600."
+        },
+        {
+          "player_name": "Mookie Betts",
+          "year": 2018,
+          "player_type": "hitter",
+          "team": "BOS",
+          "teams": [
+            "BOS"
+          ],
+          "stats": {
+            "avg": 0.346,
+            "hr": 32,
+            "rbi": 80,
+            "ops": 1.078,
+            "war": 10.2,
+            "era": null,
+            "strikeouts": 91,
+            "whip": null
+          },
+          "events": [],
+          "summary": "In 2018, Mookie Betts suited up for BOS as a hitter. Key numbers: AVG 0.346, OPS 1.078, HR 32, RBI 80, WAR 10.200."
+        },
+        {
+          "player_name": "Mookie Betts",
+          "year": 2019,
+          "player_type": "hitter",
+          "team": "BOS",
+          "teams": [
+            "BOS"
+          ],
+          "stats": {
+            "avg": 0.295,
+            "hr": 29,
+            "rbi": 80,
+            "ops": 0.915,
+            "war": 5.8,
+            "era": null,
+            "strikeouts": 101,
+            "whip": null
+          },
+          "events": [],
+          "summary": "In 2019, Mookie Betts suited up for BOS as a hitter. Key numbers: AVG 0.295, OPS 0.915, HR 29, RBI 80, WAR 5.800."
+        },
+        {
+          "player_name": "Mookie Betts",
+          "year": 2020,
+          "player_type": "hitter",
+          "team": "LAD",
+          "teams": [
+            "LAD"
+          ],
+          "stats": {
+            "avg": 0.292,
+            "hr": 16,
+            "rbi": 39,
+            "ops": 0.927,
+            "war": 2.7,
+            "era": null,
+            "strikeouts": 38,
+            "whip": null
+          },
+          "events": [
+            {
+              "type": "team_change",
+              "label": "Joined LAD",
+              "note": "Changed teams after the previous season (BOS -> LAD)."
+            },
+            {
+              "type": "award",
+              "label": "MVP runner-up",
+              "note": "Finished second in National League MVP voting in his first Dodgers season."
+            }
+          ],
+          "summary": "In 2020, Mookie Betts suited up for LAD as a hitter. Key numbers: AVG 0.292, OPS 0.927, HR 16, RBI 39, WAR 2.700. Notable context: Joined LAD; MVP runner-up."
+        },
+        {
+          "player_name": "Mookie Betts",
+          "year": 2021,
+          "player_type": "hitter",
+          "team": "LAD",
+          "teams": [
+            "LAD"
+          ],
+          "stats": {
+            "avg": 0.264,
+            "hr": 23,
+            "rbi": 58,
+            "ops": 0.854,
+            "war": 3.9,
+            "era": null,
+            "strikeouts": 86,
+            "whip": null
+          },
+          "events": [],
+          "summary": "In 2021, Mookie Betts suited up for LAD as a hitter. Key numbers: AVG 0.264, OPS 0.854, HR 23, RBI 58, WAR 3.900."
+        },
+        {
+          "player_name": "Mookie Betts",
+          "year": 2022,
+          "player_type": "hitter",
+          "team": "LAD",
+          "teams": [
+            "LAD"
+          ],
+          "stats": {
+            "avg": 0.269,
+            "hr": 35,
+            "rbi": 82,
+            "ops": 0.873,
+            "war": 6.0,
+            "era": null,
+            "strikeouts": 104,
+            "whip": null
+          },
+          "events": [],
+          "summary": "In 2022, Mookie Betts suited up for LAD as a hitter. Key numbers: AVG 0.269, OPS 0.873, HR 35, RBI 82, WAR 6.000."
+        },
+        {
+          "player_name": "Mookie Betts",
+          "year": 2023,
+          "player_type": "hitter",
+          "team": "LAD",
+          "teams": [
+            "LAD"
+          ],
+          "stats": {
+            "avg": 0.307,
+            "hr": 39,
+            "rbi": 107,
+            "ops": 0.987,
+            "war": 7.6,
+            "era": null,
+            "strikeouts": 107,
+            "whip": null
+          },
+          "events": [],
+          "summary": "In 2023, Mookie Betts suited up for LAD as a hitter. Key numbers: AVG 0.307, OPS 0.987, HR 39, RBI 107, WAR 7.600."
+        },
+        {
+          "player_name": "Mookie Betts",
+          "year": 2024,
+          "player_type": "hitter",
+          "team": "LAD",
+          "teams": [
+            "LAD"
+          ],
+          "stats": {
+            "avg": 0.289,
+            "hr": 19,
+            "rbi": 75,
+            "ops": 0.863,
+            "war": 4.3,
+            "era": null,
+            "strikeouts": 57,
+            "whip": null
+          },
+          "events": [],
+          "summary": "In 2024, Mookie Betts suited up for LAD as a hitter. Key numbers: AVG 0.289, OPS 0.863, HR 19, RBI 75, WAR 4.300."
+        },
+        {
+          "player_name": "Mookie Betts",
+          "year": 2025,
+          "player_type": "hitter",
+          "team": "LAD",
+          "teams": [
+            "LAD"
+          ],
+          "stats": {
+            "avg": 0.258,
+            "hr": 20,
+            "rbi": 82,
+            "ops": 0.732,
+            "war": 3.4,
+            "era": null,
+            "strikeouts": 68,
+            "whip": null
+          },
+          "events": [],
+          "summary": "In 2025, Mookie Betts suited up for LAD as a hitter. Key numbers: AVG 0.258, OPS 0.732, HR 20, RBI 82, WAR 3.400."
+        }
+      ]
+    }
+  ]
+}
