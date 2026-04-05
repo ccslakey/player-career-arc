@@ -1,15 +1,18 @@
 const DEFAULT_PLACEHOLDER = "Search for a player";
 
 export function playerPicker({
-  players,
-  initialSelectedNames = [],
+  options,
+  initialSelectedValues = [],
   maxSelections = 10,
   placeholder = DEFAULT_PLACEHOLDER
 }) {
   const container = document.createElement("div");
   container.className = "player-picker";
 
-  const selected = new Set(initialSelectedNames.filter((name) => players.includes(name)).slice(0, maxSelections));
+  const optionMap = new Map(options.map((option) => [option.value, option]));
+  const selected = new Set(
+    initialSelectedValues.filter((value) => optionMap.has(value)).slice(0, maxSelections)
+  );
   let query = "";
 
   const search = document.createElement("input");
@@ -45,15 +48,16 @@ export function playerPicker({
     status.textContent = `${selected.size} of ${maxSelections} selected`;
 
     selectedWrap.replaceChildren();
-    for (const name of selected) {
-      selectedWrap.append(renderSelectedChip(name));
+    for (const value of selected) {
+      selectedWrap.append(renderSelectedChip(optionMap.get(value)));
     }
 
     results.replaceChildren();
-    const matches = players.filter((name) => {
-      if (selected.has(name)) return false;
+    const matches = options.filter((option) => {
+      if (selected.has(option.value)) return false;
       if (!query) return false;
-      return name.toLowerCase().includes(query);
+      const haystack = `${option.label} ${option.searchText ?? ""}`.toLowerCase();
+      return haystack.includes(query);
     });
 
     if (!query) {
@@ -66,33 +70,33 @@ export function playerPicker({
       return;
     }
 
-    for (const name of matches.slice(0, 50)) {
-      results.append(renderResult(name));
+    for (const option of matches.slice(0, 50)) {
+      results.append(renderResult(option));
     }
   }
 
-  function renderSelectedChip(name) {
+  function renderSelectedChip(option) {
     const chip = document.createElement("button");
     chip.type = "button";
     chip.className = "player-chip";
-    chip.textContent = name;
-    chip.title = `Remove ${name}`;
+    chip.textContent = option.label;
+    chip.title = `Remove ${option.label}`;
     chip.addEventListener("click", () => {
-      selected.delete(name);
+      selected.delete(option.value);
       notify();
     });
     return chip;
   }
 
-  function renderResult(name) {
+  function renderResult(option) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "player-result";
-    button.textContent = name;
+    button.textContent = option.label;
     button.disabled = selected.size >= maxSelections;
     button.addEventListener("click", () => {
       if (selected.size >= maxSelections) return;
-      selected.add(name);
+      selected.add(option.value);
       search.value = "";
       query = "";
       notify();

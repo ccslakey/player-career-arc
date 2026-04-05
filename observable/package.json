@@ -5,10 +5,10 @@
   "scripts": {
     "dev": "observable preview",
     "build": "observable build",
+    "postbuild": "node scripts/copy-player-history.mjs",
     "deploy": "observable deploy"
   },
   "dependencies": {
     "@observablehq/framework": "^1.13.2"
   }
 }
-

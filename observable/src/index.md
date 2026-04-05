@@ -6,17 +6,36 @@ theme: dashboard
 
 ```js
 import {careerArcChart} from "./components/careerArcChart.js";
-import {normalizeDataset} from "./components/normalizeDataset.js";
+import {loadSelectedPlayers} from "./components/historyStore.js";
 import {playerPicker} from "./components/playerPicker.js";
 
-const rawDataset = await FileAttachment("data/all_players_history.json").json();
-const dataset = normalizeDataset(rawDataset);
-const allPlayers = dataset.players;
-const metrics = dataset.metadata.metrics;
-const defaultPlayers = ["Mike Trout", "Clayton Kershaw", "Mookie Betts"].filter((name) =>
-  allPlayers.some((player) => player.name === name)
-);
-const playerNames = allPlayers.map((player) => player.name);
+const manifest = await FileAttachment("data/players_manifest.json").json();
+const allPlayers = manifest.players;
+const metrics = manifest.metadata.metrics;
+const defaultPlayerIds = allPlayers
+  .filter((player) => ["Mike Trout", "Clayton Kershaw", "Mookie Betts"].includes(player.n))
+  .map((player) => player.i);
+const playerOptions = allPlayers.map((player) => ({
+  value: player.i,
+  label: `${player.n} (${player.y[0]}-${player.y[1]})`,
+  searchText: `${player.n} ${player.f ?? ""} ${player.r ?? ""}`
+}));
+const manifestById = new Map(allPlayers.map((player) => [player.i, player]));
+const historyCache = new Map();
+const metricOrder = manifest.metadata.metric_order ?? metrics.map((metric) => metric.key);
+const defaultPlayers = await loadSelectedPlayers({
+  selectedIds: defaultPlayerIds,
+  manifestById,
+  historyCache,
+  metricOrder,
+  metrics
+});
+const notes = manifest.metadata.notes;
+const selectionMode = manifest.metadata.selection_mode;
+```
+
+```js
+const defaultSelectedIds = defaultPlayerIds;
 ```
 
 <div class="hero">
@@ -31,10 +50,10 @@ const playerNames = allPlayers.map((player) => player.name);
   <div class="panel">
 
 ```js
-const selectedNames = view(
+const selectedIds = view(
   playerPicker({
-    players: playerNames,
-    initialSelectedNames: defaultPlayers,
+    options: playerOptions,
+    initialSelectedValues: defaultSelectedIds,
     maxSelections: 10
   })
 );
@@ -60,13 +79,19 @@ const selectedMetricKey = view(
 </div>
 
 ```js
-const limitedNames = selectedNames.slice(0, 10);
+const limitedIds = selectedIds.slice(0, 10);
 const activeMetric = metrics.find((metric) => metric.key === selectedMetricKey) ?? metrics[0];
-const selectedPlayers = allPlayers.filter((player) => limitedNames.includes(player.name));
+const selectedPlayers = await loadSelectedPlayers({
+  selectedIds: limitedIds,
+  manifestById,
+  historyCache,
+  metricOrder,
+  metrics
+});
 ```
 
 ```js
-selectedNames.length > 10
+selectedIds.length > 10
   ? html`<div class="warning">Only the first 10 selected players are shown at once.</div>`
   : null
 ```
@@ -100,5 +125,5 @@ Inputs.table(rows, {
 </div>
 
 ```js
-html`<p class="note">Notes: ${dataset.metadata.notes.join(" ")}</p>`
+html`<p class="note">Mode: ${selectionMode}. Notes: ${notes.join(" ")}</p>`
 ```

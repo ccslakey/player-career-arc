@@ -19,7 +19,7 @@ export function normalizeDataset(rawDataset) {
 }
 
 function normalizeSeason(season, metricOrder) {
-  const [year, playerType, team, statValues = [], eventValues = []] = season;
+  const [year, playerType, team, statValues = [], eventValues = [], summary = ""] = season;
 
   return {
     year,
@@ -28,6 +28,7 @@ function normalizeSeason(season, metricOrder) {
     stats: Object.fromEntries(
       metricOrder.map((metricKey, index) => [metricKey, statValues[index] ?? null])
     ),
-    events: eventValues.map(([type, label, note]) => ({type, label, note}))
+    events: eventValues.map(([type, label, note]) => ({type, label, note})),
+    summary
   };
 }
