@@ -72,6 +72,15 @@ This writes:
 
 The processed file keeps the full rich dataset. The Observable file is a compact browser-oriented snapshot.
 
+For large front-end datasets, build a manifest plus lazy-loaded player histories:
+
+```bash
+python scripts/build_frontend_store.py \
+  --input data/processed/all_players_history.json \
+  --manifest-output observable/src/data/players_manifest.json \
+  --history-dir observable/src/data/player-history
+```
+
 ### 3. Preview the Observable app
 
 ```bash
@@ -87,6 +96,7 @@ npm run dev
 - This starter project therefore supports an annotation CSV that can add injury notes, milestones, awards, and context to tooltips.
 - All-player mode filters batting rows to `AB >= 1` and pitching rows to at least one pitch, falling back to batters faced or innings pitched if needed.
 - The Observable export is compacted to reduce transfer and disk size for front-end use.
+- For large player pools, the recommended front-end setup is a manifest plus per-player lazy-loaded history files.
 
 ## Player config schema
 

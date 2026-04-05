@@ -400,10 +400,14 @@ def normalize_season(
     }
 
 
-def write_json(path: str | Path, payload: dict[str, object]) -> None:
+def write_json(path: str | Path, payload: dict[str, object], compact: bool = False) -> None:
     output_path = Path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    if compact:
+        serialized = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    else:
+        serialized = json.dumps(payload, ensure_ascii=False, indent=2)
+    output_path.write_text(serialized, encoding="utf-8")
 
 
 def build_observable_snapshot(dataset: dict[str, object]) -> dict[str, object]:
@@ -436,7 +440,79 @@ def build_observable_snapshot(dataset: dict[str, object]) -> dict[str, object]:
     }
 
 
-def compact_seasons(seasons: object, metric_order: list[str]) -> list[list[object]]:
+def build_history_manifest(dataset: dict[str, object]) -> dict[str, object]:
+    metadata = dataset.get("metadata", {})
+    players = dataset.get("players", [])
+
+    manifest_players = []
+    if isinstance(players, list):
+        for player in players:
+            if not isinstance(player, dict):
+                continue
+            seasons = player.get("seasons", [])
+            if not isinstance(seasons, list) or not seasons:
+                continue
+
+            first_year = min(season.get("year") for season in seasons if isinstance(season, dict) and isinstance(season.get("year"), int))
+            last_year = max(season.get("year") for season in seasons if isinstance(season, dict) and isinstance(season.get("year"), int))
+            player_type = infer_manifest_player_type(seasons)
+            history_id = player_history_id(player)
+
+            manifest_players.append(
+                {
+                    "i": history_id,
+                    "n": player.get("name"),
+                    "f": player.get("fangraphs_id"),
+                    "y": [first_year, last_year],
+                    "r": player_type,
+                }
+            )
+
+    manifest_metadata = dict(metadata) if isinstance(metadata, dict) else {}
+    manifest_metadata["manifest"] = True
+    return {
+        "metadata": manifest_metadata,
+        "players": manifest_players,
+    }
+
+
+def build_player_history_payload(player: dict[str, object], metric_order: list[str]) -> dict[str, object]:
+    return {
+        "k": player.get("player_key"),
+        "n": player.get("name"),
+        "f": player.get("fangraphs_id"),
+        "s": compact_seasons(player.get("seasons"), metric_order, include_summary=True),
+    }
+
+
+def build_history_store(
+    dataset: dict[str, object],
+    manifest_output: str | Path,
+    history_dir: str | Path,
+) -> dict[str, object]:
+    metric_order = [metric["key"] for metric in METRICS]
+    manifest = build_history_manifest(dataset)
+    history_path = Path(history_dir)
+    history_path.mkdir(parents=True, exist_ok=True)
+
+    players = dataset.get("players", [])
+    if isinstance(players, list):
+        for player in players:
+            if not isinstance(player, dict):
+                continue
+            history_id = player_history_id(player)
+            payload = build_player_history_payload(player, metric_order)
+            write_json(history_path / f"{history_id}.json", payload, compact=True)
+
+    write_json(manifest_output, manifest, compact=True)
+    return manifest
+
+
+def compact_seasons(
+    seasons: object,
+    metric_order: list[str],
+    include_summary: bool = False,
+) -> list[list[object]]:
     compact: list[list[object]] = []
     if not isinstance(seasons, list):
         return compact
@@ -446,15 +522,16 @@ def compact_seasons(seasons: object, metric_order: list[str]) -> list[list[objec
             continue
         stats = season.get("stats", {})
         events = season.get("events", [])
-        compact.append(
-            [
-                season.get("year"),
-                season.get("player_type"),
-                season.get("team"),
-                compact_stats(stats, metric_order),
-                compact_events(events),
-            ]
-        )
+        row = [
+            season.get("year"),
+            season.get("player_type"),
+            season.get("team"),
+            compact_stats(stats, metric_order),
+            compact_events(events),
+        ]
+        if include_summary:
+            row.append(season.get("summary"))
+        compact.append(row)
     return compact
 
 
@@ -474,6 +551,25 @@ def compact_events(events: object) -> list[list[object]]:
             continue
         compact.append([event.get("type"), event.get("label"), event.get("note")])
     return compact
+
+
+def infer_manifest_player_type(seasons: list[dict[str, object]]) -> str:
+    roles = [season.get("player_type") for season in seasons if isinstance(season, dict)]
+    if "two_way" in roles:
+        return "two_way"
+    if "hitter" in roles and "pitcher" in roles:
+        return "two_way"
+    if "pitcher" in roles:
+        return "pitcher"
+    return "hitter"
+
+
+def player_history_id(player: dict[str, object]) -> str:
+    fangraphs_id = player.get("fangraphs_id")
+    if fangraphs_id is not None:
+        return f"fg-{fangraphs_id}"
+    player_key = player.get("player_key") or slugify(str(player.get("name") or "player"))
+    return f"pk-{player_key}"
 
 
 def slugify(value: str) -> str:

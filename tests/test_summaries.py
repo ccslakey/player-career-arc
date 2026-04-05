@@ -8,7 +8,13 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from career_arc.annotations import infer_team_change_events
-from career_arc.pipeline import build_observable_snapshot, row_has_batting_activity, row_has_pitching_activity
+from career_arc.pipeline import (
+    build_history_manifest,
+    build_observable_snapshot,
+    player_history_id,
+    row_has_batting_activity,
+    row_has_pitching_activity,
+)
 from career_arc.summaries import build_summary_prompt, generate_fallback_summary
 
 
@@ -82,6 +88,22 @@ class SummaryTests(unittest.TestCase):
         self.assertTrue(compact["metadata"]["compact"])
         self.assertEqual(compact["players"][0]["n"], "Test Player")
         self.assertEqual(compact["players"][0]["s"][0][0], 2020)
+
+    def test_history_manifest_uses_unique_ids(self) -> None:
+        dataset = {
+            "metadata": {"metrics": [{"key": "avg"}]},
+            "players": [
+                {
+                    "player_key": "test-player",
+                    "name": "Test Player",
+                    "fangraphs_id": 123,
+                    "seasons": [{"year": 2020, "player_type": "hitter"}],
+                }
+            ],
+        }
+        manifest = build_history_manifest(dataset)
+        self.assertEqual(manifest["players"][0]["i"], "fg-123")
+        self.assertEqual(player_history_id(dataset["players"][0]), "fg-123")
 
 
 if __name__ == "__main__":
