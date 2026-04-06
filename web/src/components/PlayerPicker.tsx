@@ -54,6 +54,7 @@ export function PlayerPicker({
             key={option.value}
             className="player-chip"
             type="button"
+            aria-label={`Remove ${option.label}`}
             onClick={() => onChange(selectedIds.filter((value) => value !== option.value))}
             title={`Remove ${option.label}`}
           >

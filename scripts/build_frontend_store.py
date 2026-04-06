@@ -14,7 +14,7 @@ from career_arc.pipeline import build_history_store
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Build a manifest plus lazy-loaded player histories for Observable.")
+    parser = argparse.ArgumentParser(description="Build a manifest plus lazy-loaded player histories for the frontend app.")
     parser.add_argument("--input", required=True, help="Full processed dataset JSON.")
     parser.add_argument("--manifest-output", required=True, help="Output path for the player manifest JSON.")
     parser.add_argument("--history-dir", required=True, help="Output directory for per-player history files.")

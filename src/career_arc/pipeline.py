@@ -41,7 +41,7 @@ def build_dataset(
     players_csv: str | Path | None,
     annotations_csv: str | Path | None,
     processed_output: str | Path,
-    observable_output: str | Path,
+    frontend_output: str | Path,
     include_all_players: bool = False,
     start_year: int | None = None,
     end_year: int | None = None,
@@ -112,7 +112,7 @@ def build_dataset(
     }
 
     write_json(processed_output, dataset)
-    write_json(observable_output, build_observable_snapshot(dataset))
+    write_json(frontend_output, build_frontend_snapshot(dataset))
     return dataset
 
 
@@ -410,7 +410,7 @@ def write_json(path: str | Path, payload: dict[str, object], compact: bool = Fal
     output_path.write_text(serialized, encoding="utf-8")
 
 
-def build_observable_snapshot(dataset: dict[str, object]) -> dict[str, object]:
+def build_frontend_snapshot(dataset: dict[str, object]) -> dict[str, object]:
     metadata = dataset.get("metadata", {})
     players = dataset.get("players", [])
     metric_order = [metric["key"] for metric in METRICS]

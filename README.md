@@ -4,7 +4,7 @@ A starter project for tracking MLB player career arcs with:
 
 - `pybaseball` for player lookup and season-level stat extraction
 - a Python normalization pipeline that emits chart-friendly JSON
-- an Observable Framework app with D3 for multi-player comparison
+- a React + TypeScript app with D3 for multi-player comparison
 - annotation support for team changes and injuries
 - a pluggable summary layer for season-by-season narrative blurbs
 
@@ -26,9 +26,9 @@ career-arc-visualizer/
 ├── data/
 │   ├── processed/
 │   └── raw/
-├── observable/
+├── web/
 │   ├── package.json
-│   ├── observablehq.config.js
+│   ├── public/
 │   └── src/
 ├── scripts/
 │   └── build_player_dataset.py
@@ -68,26 +68,40 @@ python scripts/build_player_dataset.py \
 This writes:
 
 - `data/processed/players.json`
-- `observable/src/data/players.json`
+- `web/public/data/players.json`
 
-The processed file keeps the full rich dataset. The Observable file is a compact browser-oriented snapshot.
+The processed file keeps the full rich dataset. The frontend file is a compact browser-oriented snapshot.
 
 For large front-end datasets, build a manifest plus lazy-loaded player histories:
 
 ```bash
 python scripts/build_frontend_store.py \
   --input data/processed/all_players_history.json \
-  --manifest-output observable/src/data/players_manifest.json \
-  --history-dir observable/src/data/player-history
+  --manifest-output web/public/data/players_manifest.json \
+  --history-dir web/public/data/player-history
 ```
 
-### 3. Preview the Observable app
+### 3. Run the React app
+
+The repo includes a React + TypeScript front end under `web/` that reuses the same
+manifest plus lazy-loaded player-history JSON files.
 
 ```bash
-cd observable
+cd web
 npm install
 npm run dev
 ```
+
+For a production build:
+
+```bash
+cd web
+npm run build
+npm run preview
+```
+
+The React app reads generated front-end data directly from `web/public/data` and validates that
+the manifest plus player-history files are present before `build`.
 
 ## Data notes
 
@@ -95,7 +109,7 @@ npm run dev
 - Injury history generally needs a supplemental source or manual curation.
 - This starter project therefore supports an annotation CSV that can add injury notes, milestones, awards, and context to tooltips.
 - All-player mode filters batting rows to `AB >= 1` and pitching rows to at least one pitch, falling back to batters faced or innings pitched if needed.
-- The Observable export is compacted to reduce transfer and disk size for front-end use.
+- The frontend export is compacted to reduce transfer and disk size for browser use.
 - For large player pools, the recommended front-end setup is a manifest plus per-player lazy-loaded history files.
 
 ## Player config schema

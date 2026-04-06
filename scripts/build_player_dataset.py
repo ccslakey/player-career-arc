@@ -45,9 +45,9 @@ def parse_args() -> argparse.Namespace:
         help="Output path for the processed JSON snapshot.",
     )
     parser.add_argument(
-        "--observable-output",
-        default=str(ROOT / "observable" / "src" / "data" / "players.json"),
-        help="Output path for the Observable data file.",
+        "--frontend-output",
+        default=str(ROOT / "web" / "public" / "data" / "players.json"),
+        help="Output path for the frontend data file.",
     )
     return parser.parse_args()
 
@@ -58,13 +58,13 @@ def main() -> None:
         players_csv=None if args.all_players else args.players,
         annotations_csv=args.annotations,
         processed_output=args.processed_output,
-        observable_output=args.observable_output,
+        frontend_output=args.frontend_output,
         include_all_players=args.all_players,
         start_year=args.start_year,
         end_year=args.end_year,
     )
     print(
-        f"Wrote {len(dataset['players'])} players to {args.processed_output} and {args.observable_output}."
+        f"Wrote {len(dataset['players'])} players to {args.processed_output} and {args.frontend_output}."
     )
 
 

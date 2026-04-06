@@ -9,8 +9,8 @@ if str(SRC) not in sys.path:
 
 from career_arc.annotations import infer_team_change_events
 from career_arc.pipeline import (
+    build_frontend_snapshot,
     build_history_manifest,
-    build_observable_snapshot,
     player_history_id,
     row_has_batting_activity,
     row_has_pitching_activity,
@@ -63,7 +63,7 @@ class SummaryTests(unittest.TestCase):
         self.assertTrue(row_has_pitching_activity({"IP": 0.1}))
         self.assertFalse(row_has_pitching_activity({"Pitches": 0, "BF": 0, "IP": 0.0}))
 
-    def test_observable_snapshot_compacts_player_shape(self) -> None:
+    def test_frontend_snapshot_compacts_player_shape(self) -> None:
         full_dataset = {
             "metadata": {"metrics": [{"key": "avg"}, {"key": "war"}]},
             "players": [
@@ -84,7 +84,7 @@ class SummaryTests(unittest.TestCase):
                 }
             ],
         }
-        compact = build_observable_snapshot(full_dataset)
+        compact = build_frontend_snapshot(full_dataset)
         self.assertTrue(compact["metadata"]["compact"])
         self.assertEqual(compact["players"][0]["n"], "Test Player")
         self.assertEqual(compact["players"][0]["s"][0][0], 2020)
