@@ -56,6 +56,9 @@ def load_annotation_index(path: str | Path | None) -> dict[tuple[str, int], list
     return index
 
 
+
+# TODO: This is a placeholder for a more sophisticated team change event inference algorithm.   
+# currently fails to detect team changes for players who have multiple teams in a single season.
 def infer_team_change_events(seasons: list[dict[str, object]]) -> list[dict[str, object]]:
     inferred: list[dict[str, object]] = []
     previous_team: str | None = None

@@ -1,4 +1,5 @@
 # Career Arc Visualizer
+[![CI](https://github.com/ccslakey/player-career-arc/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ccslakey/player-career-arc/actions/workflows/ci.yml)
 
 A starter project for tracking MLB player career arcs with:
 
