@@ -77,7 +77,7 @@ For large front-end datasets, build a manifest plus lazy-loaded player histories
 
 ```bash
 python scripts/build_frontend_store.py \
-  --input data/processed/all_players_history.json \
+  --input data/processed/players.json \
   --manifest-output web/public/data/players_manifest.json \
   --history-dir web/public/data/player-history
 ```
@@ -141,6 +141,15 @@ To upload already-generated data with a custom prefix:
 cd web
 npm run blob:upload -- --prefix releases/2026-04-07
 ```
+
+If you are on a lower Blob rate limit tier (for example Hobby), reduce request pressure:
+
+```bash
+cd web
+npm run blob:upload -- --prefix latest --concurrency 4
+```
+
+The uploader includes retry logic with backoff for transient errors and rate limits (`429`).
 
 For automation, use the GitHub Actions workflow `Publish Full Data To Vercel Blob`.
 

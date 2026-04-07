@@ -220,7 +220,6 @@ export default function App() {
   return (
     <main className="page-shell">
       <section className="hero">
-        <p className="eyebrow">React parity migration</p>
         <h1>Career arcs, season by season.</h1>
         <p>
           Compare up to 10 MLB players across core batting and pitching stats, then hover any point to
