@@ -122,6 +122,33 @@ There is also a manual GitHub Actions workflow named `Generate Full Frontend Dat
 that builds the full static dataset and uploads `web/public/data` plus `data/processed`
 as downloadable workflow artifacts.
 
+## Vercel Blob data hosting
+
+The app supports loading manifest and player-history files from a Vercel Blob base URL.
+Set `VITE_DATA_BASE_URL` to either:
+
+- a mutable path, for example `https://<store-id>.public.blob.vercel-storage.com/latest`
+- an immutable release path, for example `https://<store-id>.public.blob.vercel-storage.com/releases/2026-04-07`
+
+When `VITE_DATA_BASE_URL` is not set, the app falls back to local `web/public/data`.
+
+To publish full data to Blob from your machine:
+
+```bash
+cd web
+npm run blob:publish:latest
+```
+
+To upload already-generated data with a custom prefix:
+
+```bash
+cd web
+npm run blob:upload -- --prefix releases/2026-04-07
+```
+
+For automation, run the manual GitHub Actions workflow `Publish Full Data To Vercel Blob`.
+It requires the repository secret `BLOB_READ_WRITE_TOKEN`.
+
 `sync:data` also supports a direct generation flag with optional arguments:
 
 ```bash

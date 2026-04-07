@@ -7,7 +7,8 @@ import type {
   PlayerRecord
 } from "../types";
 
-const MANIFEST_PATH = assetUrl("data/players_manifest.json");
+const configuredDataBaseUrl = normalizeBaseUrl(import.meta.env.VITE_DATA_BASE_URL);
+const MANIFEST_PATH = dataAssetUrl("players_manifest.json");
 
 export async function fetchManifest(signal?: AbortSignal): Promise<ManifestPayload> {
   const response = await fetch(MANIFEST_PATH, {signal});
@@ -91,9 +92,25 @@ function normalizeHistoryPayload(
 }
 
 function historyPath(entry: ManifestPlayerEntry): string {
-  return assetUrl(`data/player-history/${entry.i}.json`);
+  return dataAssetUrl(`player-history/${entry.i}.json`);
 }
 
-function assetUrl(path: string): string {
-  return new URL(path, window.location.origin + import.meta.env.BASE_URL).toString();
+function dataAssetUrl(path: string): string {
+  if (configuredDataBaseUrl) {
+    return `${configuredDataBaseUrl}/${path.replace(/^\/+/, "")}`;
+  }
+  return new URL(`data/${path.replace(/^\/+/, "")}`, window.location.origin + import.meta.env.BASE_URL).toString();
+}
+
+function normalizeBaseUrl(url: string | undefined): string | null {
+  if (!url) {
+    return null;
+  }
+
+  const trimmed = url.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  return trimmed.replace(/\/+$/, "");
 }

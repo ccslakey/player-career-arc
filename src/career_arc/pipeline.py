@@ -144,7 +144,7 @@ def determine_year_range(players: list[object]) -> tuple[int, int]:
     return min(start_years or [2000]), max(end_years or [current_year])
 
 
-def load_pybaseball_tables(start_year: int = 1900, end_year: int = 2024) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
+def load_pybaseball_tables(start_year: int = 1900, end_year: int = datetime.now().year) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
     from pybaseball import batting_stats, cache, pitching_stats
 
     cache.enable()
