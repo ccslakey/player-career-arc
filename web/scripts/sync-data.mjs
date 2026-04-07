@@ -11,6 +11,8 @@ const playersSnapshotPath = resolve(dataDir, "players.json");
 const defaultProcessedOutput = resolve(repoRoot, "data/processed/players.json");
 const defaultPlayersCsv = resolve(repoRoot, "config/players.example.csv");
 const defaultAnnotationsCsv = resolve(repoRoot, "config/annotations.example.csv");
+const defaultPythonBin = resolve(repoRoot, ".venv/bin/python");
+const defaultPybaseballCache = resolve(repoRoot, "data/raw/pybaseball-cache");
 
 const options = parseArgs(process.argv.slice(2));
 
@@ -35,6 +37,7 @@ function parseArgs(argv) {
     processedOutput: null,
     startYear: null,
     endYear: null,
+    sourcePreference: "mlb_statsapi",
     help: false
   };
 
@@ -61,6 +64,9 @@ function parseArgs(argv) {
         break;
       case "--end-year":
         parsed.endYear = getValue(argv, ++index, "--end-year");
+        break;
+      case "--source-preference":
+        parsed.sourcePreference = getValue(argv, ++index, "--source-preference");
         break;
       case "--help":
       case "-h":
@@ -89,6 +95,7 @@ function toAbs(pathValue) {
 }
 
 async function runPipelineAndPopulateFrontend(options) {
+  const pythonBin = await resolvePythonBin();
   const processedOutput = toAbs(options.processedOutput) ?? defaultProcessedOutput;
   const playersCsv = toAbs(options.playersCsv) ?? defaultPlayersCsv;
   const annotationsCsv = toAbs(options.annotationsCsv) ?? defaultAnnotationsCsv;
@@ -99,6 +106,8 @@ async function runPipelineAndPopulateFrontend(options) {
     buildDatasetScript,
     "--annotations",
     annotationsCsv,
+    "--source-preference",
+    options.sourcePreference ?? "mlb_statsapi",
     "--processed-output",
     processedOutput,
     "--frontend-output",
@@ -118,8 +127,26 @@ async function runPipelineAndPopulateFrontend(options) {
     datasetArgs.push("--end-year", options.endYear);
   }
 
-  await run("python3", datasetArgs, repoRoot);
-  await run("python3", [
+  const runtimeEnv = {
+    PYBASEBALL_CACHE: process.env.PYBASEBALL_CACHE ?? defaultPybaseballCache,
+    MPLCONFIGDIR: process.env.MPLCONFIGDIR ?? "/tmp/matplotlib-cache"
+  };
+
+  let usedStaleProcessedSnapshot = false;
+  try {
+    await run(pythonBin, datasetArgs, repoRoot, runtimeEnv);
+  } catch (error) {
+    if (!(await exists(processedOutput))) {
+      throw error;
+    }
+    usedStaleProcessedSnapshot = true;
+    console.warn(
+      `Data generation failed (${error instanceof Error ? error.message : String(error)}). ` +
+        `Falling back to existing processed snapshot at ${processedOutput}.`
+    );
+  }
+
+  await run(pythonBin, [
     buildStoreScript,
     "--input",
     processedOutput,
@@ -127,14 +154,19 @@ async function runPipelineAndPopulateFrontend(options) {
     manifestPath,
     "--history-dir",
     historyDir
-  ], repoRoot);
+  ], repoRoot, runtimeEnv);
+
+  if (usedStaleProcessedSnapshot) {
+    console.warn("Frontend data store rebuilt from last-known-good processed snapshot.");
+  }
 }
 
-function run(command, args, cwd) {
+function run(command, args, cwd, env = undefined) {
   return new Promise((resolvePromise, rejectPromise) => {
     const child = spawn(command, args, {
       cwd,
-      stdio: "inherit"
+      stdio: "inherit",
+      env: env ? {...process.env, ...env} : process.env
     });
 
     child.on("error", rejectPromise);
@@ -146,6 +178,26 @@ function run(command, args, cwd) {
       rejectPromise(new Error(`${command} exited with code ${code}`));
     });
   });
+}
+
+async function resolvePythonBin() {
+  const fromEnv = process.env.PYTHON_BIN;
+  if (fromEnv) {
+    return fromEnv;
+  }
+  if (await exists(defaultPythonBin)) {
+    return defaultPythonBin;
+  }
+  return "python3";
+}
+
+async function exists(path) {
+  try {
+    await stat(path);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function printHelp() {
@@ -161,6 +213,7 @@ Options:
   --processed-output <path>  Processed dataset JSON path.
   --start-year <year>    Optional lower year bound for generation.
   --end-year <year>      Optional upper year bound for generation.
+  --source-preference <source>  mlb_statsapi | auto | fangraphs.
   --help                 Show this help output.
 `);
 }

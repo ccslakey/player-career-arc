@@ -5,7 +5,15 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .annotations import infer_team_change_events, load_annotation_index
+import requests
+
+from .annotations import (
+    collect_external_annotation_events,
+    derive_milestone_events,
+    infer_team_change_events,
+    load_annotation_index,
+    merge_annotation_events,
+)
 from .lookup import PlayerRequest, resolve_player
 from .summaries import generate_fallback_summary
 
@@ -36,6 +44,8 @@ STAT_ALIASES = {
     "whip": ["WHIP", "whip"],
 }
 
+MLB_STATS_API_BASE = "https://statsapi.mlb.com/api/v1"
+
 
 def build_dataset(
     players_csv: str | Path | None,
@@ -45,18 +55,25 @@ def build_dataset(
     include_all_players: bool = False,
     start_year: int | None = None,
     end_year: int | None = None,
+    source_preference: str = "mlb_statsapi",
 ) -> dict[str, object]:
     annotation_index = load_annotation_index(annotations_csv)
+
     if include_all_players:
         start_year = start_year or 2000
         end_year = end_year or datetime.now().year
-        batting_rows, pitching_rows = load_pybaseball_tables(start_year, end_year)
+        batting_rows, pitching_rows, id_system, resolved_source = load_stat_tables(
+            start_year=start_year,
+            end_year=end_year,
+            source_preference=source_preference,
+        )
         players = build_all_players_dataset(
             batting_rows=batting_rows,
             pitching_rows=pitching_rows,
             annotation_index=annotation_index,
             start_year=start_year,
             end_year=end_year,
+            id_system=id_system,
         )
     else:
         if players_csv is None:
@@ -65,18 +82,37 @@ def build_dataset(
         player_requests = load_player_requests(players_csv)
         resolved_players = [resolve_player(request) for request in player_requests]
         start_year, end_year = determine_year_range(resolved_players)
-        batting_rows, pitching_rows = load_pybaseball_tables(start_year, end_year)
+        batting_rows, pitching_rows, id_system, resolved_source = load_stat_tables(
+            start_year=start_year,
+            end_year=end_year,
+            source_preference=source_preference,
+        )
 
         players = []
         for resolved in resolved_players:
-            if resolved.fangraphs_id is None:
+            season_row_player_id = (
+                resolved.fangraphs_id
+                if id_system == "fangraphs"
+                else resolved.mlbam_id
+            )
+            if season_row_player_id is None:
                 raise ValueError(
-                    f"Could not resolve a Fangraphs id for {resolved.player_name!r}. "
-                    "Provide a Fangraphs id directly or use a full name that pybaseball can disambiguate."
+                    f"Could not resolve a required player id for source {id_system!r} for {resolved.player_name!r}."
                 )
+
+            event_player_id = (
+                f"fg-{resolved.fangraphs_id}"
+                if resolved.fangraphs_id is not None
+                else f"mlb-{resolved.mlbam_id}"
+                if resolved.mlbam_id is not None
+                else slugify(resolved.player_name)
+            )
+
             seasons = build_player_seasons(
                 resolved.player_name,
-                resolved.fangraphs_id,
+                season_row_player_id,
+                event_player_id,
+                resolved.mlbam_id,
                 batting_rows,
                 pitching_rows,
                 annotation_index,
@@ -96,7 +132,7 @@ def build_dataset(
     dataset = {
         "metadata": {
             "generated_at": datetime.now(timezone.utc).isoformat(),
-            "source": "pybaseball",
+            "source": resolved_source,
             "selection_mode": "all_players" if include_all_players else "configured_players",
             "start_year": start_year,
             "end_year": end_year,
@@ -144,6 +180,31 @@ def determine_year_range(players: list[object]) -> tuple[int, int]:
     return min(start_years or [2000]), max(end_years or [current_year])
 
 
+def load_stat_tables(
+    start_year: int,
+    end_year: int,
+    source_preference: str,
+) -> tuple[list[dict[str, object]], list[dict[str, object]], str, str]:
+    normalized = (source_preference or "").strip().lower() or "mlb_statsapi"
+    if normalized not in {"mlb_statsapi", "auto", "fangraphs"}:
+        raise ValueError(
+            f"Invalid source_preference {source_preference!r}. "
+            "Expected one of: mlb_statsapi, auto, fangraphs."
+        )
+
+    if normalized in {"mlb_statsapi", "auto"}:
+        try:
+            batting_rows, pitching_rows = load_mlb_statsapi_tables(start_year, end_year)
+            return batting_rows, pitching_rows, "mlbam", "mlb_statsapi"
+        except Exception as exc:
+            if normalized == "mlb_statsapi":
+                raise
+            print(f"MLB Stats API load failed ({exc}); falling back to Fangraphs.")
+
+    batting_rows, pitching_rows = load_pybaseball_tables(start_year, end_year)
+    return batting_rows, pitching_rows, "fangraphs", "fangraphs_pybaseball"
+
+
 def load_pybaseball_tables(start_year: int = 1900, end_year: int = datetime.now().year) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
     from pybaseball import batting_stats, cache, pitching_stats
 
@@ -163,12 +224,135 @@ def load_pybaseball_tables(start_year: int = 1900, end_year: int = datetime.now(
     return batting_rows, pitching_rows
 
 
+def load_mlb_statsapi_tables(
+    start_year: int = 1900,
+    end_year: int = datetime.now().year,
+) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
+    batting_rows: list[dict[str, object]] = []
+    pitching_rows: list[dict[str, object]] = []
+
+    for year in range(start_year, end_year + 1):
+        print(f"Loading MLB Stats API batting data for {year}")
+        team_map = load_mlb_team_abbreviations(year)
+        batting_splits = fetch_mlb_stats_splits(year, "hitting")
+        batting_rows.extend(convert_mlb_splits_to_rows(batting_splits, year, team_map, "hitting"))
+
+        print(f"Loading MLB Stats API pitching data for {year}")
+        pitching_splits = fetch_mlb_stats_splits(year, "pitching")
+        pitching_rows.extend(convert_mlb_splits_to_rows(pitching_splits, year, team_map, "pitching"))
+
+    return batting_rows, pitching_rows
+
+
+def load_mlb_team_abbreviations(year: int) -> dict[int, str]:
+    payload = fetch_json(
+        f"{MLB_STATS_API_BASE}/teams",
+        {"sportId": 1, "season": year},
+    )
+    teams = payload.get("teams")
+    if not isinstance(teams, list):
+        return {}
+
+    team_map: dict[int, str] = {}
+    for team in teams:
+        if not isinstance(team, dict):
+            continue
+        team_id = _coerce_int(team.get("id"))
+        abbreviation = str(team.get("abbreviation") or "").strip()
+        if team_id is None or not abbreviation:
+            continue
+        team_map[team_id] = abbreviation
+    return team_map
+
+
+def fetch_mlb_stats_splits(year: int, group: str) -> list[dict[str, object]]:
+    payload = fetch_json(
+        f"{MLB_STATS_API_BASE}/stats",
+        {
+            "stats": "season",
+            "group": group,
+            "sportIds": 1,
+            "season": year,
+            "playerPool": "ALL",
+            "limit": 10000,
+        },
+    )
+    stats = payload.get("stats")
+    if not isinstance(stats, list) or not stats:
+        return []
+
+    splits = stats[0].get("splits")
+    return [split for split in splits if isinstance(split, dict)] if isinstance(splits, list) else []
+
+
+def convert_mlb_splits_to_rows(
+    splits: list[dict[str, object]],
+    year: int,
+    team_abbreviations: dict[int, str],
+    group: str,
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+
+    for split in splits:
+        player = split.get("player")
+        stat = split.get("stat")
+        if not isinstance(player, dict) or not isinstance(stat, dict):
+            continue
+
+        player_id = _coerce_int(player.get("id"))
+        player_name = str(player.get("fullName") or "").strip()
+        if player_id is None or not player_name:
+            continue
+
+        team = split.get("team")
+        team_id = _coerce_int(team.get("id")) if isinstance(team, dict) else None
+        team_name = str(team.get("name") or "").strip() if isinstance(team, dict) else ""
+        team_label = team_abbreviations.get(team_id) or team_name or "Unknown"
+
+        row: dict[str, object] = {
+            "Season": year,
+            "IDfg": player_id,
+            "Name": player_name,
+            "Team": team_label,
+        }
+
+        if group == "hitting":
+            row.update(
+                {
+                    "AB": _coerce_int(stat.get("atBats")),
+                    "AVG": _coerce_float(stat.get("avg")),
+                    "HR": _coerce_int(stat.get("homeRuns")),
+                    "RBI": _coerce_int(stat.get("rbi")),
+                    "OPS": _coerce_float(stat.get("ops")),
+                    "SO": _coerce_int(stat.get("strikeOuts")),
+                    "WAR": None,
+                }
+            )
+        else:
+            row.update(
+                {
+                    "Pitches": _coerce_int(stat.get("numberOfPitches")),
+                    "BF": _coerce_int(stat.get("battersFaced")),
+                    "IP": _coerce_float(stat.get("inningsPitched")),
+                    "ERA": _coerce_float(stat.get("era")),
+                    "WHIP": _coerce_float(stat.get("whip")),
+                    "SO": _coerce_int(stat.get("strikeOuts")),
+                    "WAR": None,
+                }
+            )
+
+        rows.append(row)
+
+    return rows
+
+
 def build_all_players_dataset(
     batting_rows: list[dict[str, object]],
     pitching_rows: list[dict[str, object]],
     annotation_index: dict[tuple[str, int], list[object]],
     start_year: int,
     end_year: int,
+    id_system: str,
 ) -> list[dict[str, object]]:
     grouped_players = group_rows_by_player(
         batting_rows=batting_rows,
@@ -178,12 +362,17 @@ def build_all_players_dataset(
     )
     players: list[dict[str, object]] = []
 
-    for fangraphs_id, grouped in sorted(grouped_players.items(), key=lambda item: item[1]["name"]):
+    for source_player_id, grouped in sorted(grouped_players.items(), key=lambda item: item[1]["name"]):
+        event_player_id = (
+            f"fg-{source_player_id}" if id_system == "fangraphs" else f"mlb-{source_player_id}"
+        )
         seasons = build_player_seasons_from_rows(
             player_name=grouped["name"],
             batting_rows=grouped["batting"],
             pitching_rows=grouped["pitching"],
             annotation_index=annotation_index,
+            player_id=event_player_id,
+            mlbam_id=None,
         )
         if not seasons:
             continue
@@ -192,8 +381,8 @@ def build_all_players_dataset(
             {
                 "player_key": slugify(grouped["name"]),
                 "name": grouped["name"],
-                "fangraphs_id": fangraphs_id,
-                "mlbam_id": None,
+                "fangraphs_id": source_player_id if id_system == "fangraphs" else None,
+                "mlbam_id": source_player_id if id_system == "mlbam" else None,
                 "seasons": seasons,
             }
         )
@@ -244,16 +433,25 @@ def group_rows_by_player(
 
 def build_player_seasons(
     player_name: str,
-    fangraphs_id: int,
+    season_row_player_id: int,
+    event_player_id: str,
+    mlbam_id: int | None,
     batting_rows: list[dict[str, object]],
     pitching_rows: list[dict[str, object]],
     annotation_index: dict[tuple[str, int], list[object]],
     start_year: int,
     end_year: int,
 ) -> list[dict[str, object]]:
-    batting = filter_player_rows(batting_rows, fangraphs_id, start_year, end_year, "batting")
-    pitching = filter_player_rows(pitching_rows, fangraphs_id, start_year, end_year, "pitching")
-    return build_player_seasons_from_rows(player_name, batting, pitching, annotation_index)
+    batting = filter_player_rows(batting_rows, season_row_player_id, start_year, end_year, "batting")
+    pitching = filter_player_rows(pitching_rows, season_row_player_id, start_year, end_year, "pitching")
+    return build_player_seasons_from_rows(
+        player_name=player_name,
+        batting_rows=batting,
+        pitching_rows=pitching,
+        annotation_index=annotation_index,
+        player_id=event_player_id,
+        mlbam_id=mlbam_id,
+    )
 
 
 def build_player_seasons_from_rows(
@@ -261,6 +459,8 @@ def build_player_seasons_from_rows(
     batting_rows: list[dict[str, object]],
     pitching_rows: list[dict[str, object]],
     annotation_index: dict[tuple[str, int], list[object]],
+    player_id: str | None = None,
+    mlbam_id: int | None = None,
 ) -> list[dict[str, object]]:
     batting = batting_rows
     pitching = pitching_rows
@@ -285,21 +485,56 @@ def build_player_seasons_from_rows(
         batting_row = bundle.get("batting")
         pitching_row = bundle.get("pitching")
         season = normalize_season(player_name, year, batting_row, pitching_row)
-        key = (player_name.lower(), year)
-        extra_events = [event.to_dict() for event in annotation_index.get(key, [])]
-        season["events"] = extra_events
-        season["summary"] = generate_fallback_summary(player_name, season)
         seasons.append(season)
 
+    if not seasons:
+        return []
+
+    season_years = [season["year"] for season in seasons if isinstance(season.get("year"), int)]
+    if not season_years:
+        return seasons
+
+    first_year = min(season_years)
+    last_year = max(season_years)
     inferred_events = infer_team_change_events(seasons)
-    event_index = {event["year"]: event for event in inferred_events}
+    derived_events = derive_milestone_events(seasons)
+    official_events = collect_external_annotation_events(mlbam_id, first_year, last_year)
+    generated_by_year = index_events_by_year(official_events + inferred_events + derived_events)
+    dedupe_player_id = player_id or slugify(player_name)
+
     for season in seasons:
-        inferred = event_index.get(season["year"])
-        if inferred:
-            season["events"].insert(0, {k: v for k, v in inferred.items() if k != "year"})
-            season["summary"] = generate_fallback_summary(player_name, season)
+        year = season["year"]
+        candidates: list[dict[str, object]] = list(generated_by_year.get(year, []))
+        key = (player_name.lower(), year)
+
+        for manual_event in annotation_index.get(key, []):
+            if hasattr(manual_event, "to_dict"):
+                payload = manual_event.to_dict()
+            elif isinstance(manual_event, dict):
+                payload = manual_event
+            else:
+                continue
+            if isinstance(payload, dict):
+                candidates.append({"year": year, **payload})
+
+        season["events"] = merge_annotation_events(
+            player_id=dedupe_player_id,
+            year=year,
+            candidate_events=candidates,
+        )
+        season["summary"] = generate_fallback_summary(player_name, season)
 
     return seasons
+
+
+def index_events_by_year(events: list[dict[str, object]]) -> dict[int, list[dict[str, object]]]:
+    indexed: dict[int, list[dict[str, object]]] = {}
+    for event in events:
+        year = _coerce_int(event.get("year")) if isinstance(event, dict) else None
+        if year is None:
+            continue
+        indexed.setdefault(year, []).append(event)
+    return indexed
 
 
 def filter_player_rows(
@@ -425,7 +660,7 @@ def build_frontend_snapshot(dataset: dict[str, object]) -> dict[str, object]:
                 {
                     "k": player.get("player_key"),
                     "n": player.get("name"),
-                    "f": player.get("fangraphs_id"),
+                    "f": player.get("fangraphs_id") or player.get("mlbam_id"),
                     "s": compact_seasons(seasons, metric_order),
                 }
             )
@@ -462,7 +697,7 @@ def build_history_manifest(dataset: dict[str, object]) -> dict[str, object]:
                 {
                     "i": history_id,
                     "n": player.get("name"),
-                    "f": player.get("fangraphs_id"),
+                    "f": player.get("fangraphs_id") or player.get("mlbam_id"),
                     "y": [first_year, last_year],
                     "r": player_type,
                 }
@@ -480,7 +715,7 @@ def build_player_history_payload(player: dict[str, object], metric_order: list[s
     return {
         "k": player.get("player_key"),
         "n": player.get("name"),
-        "f": player.get("fangraphs_id"),
+        "f": player.get("fangraphs_id") or player.get("mlbam_id"),
         "s": compact_seasons(player.get("seasons"), metric_order, include_summary=True),
     }
 
@@ -549,7 +784,19 @@ def compact_events(events: object) -> list[list[object]]:
     for event in events:
         if not isinstance(event, dict):
             continue
-        compact.append([event.get("type"), event.get("label"), event.get("note")])
+        row = [event.get("type"), event.get("label"), event.get("note")]
+        optional_values = [
+            event.get("source"),
+            event.get("confidence"),
+            event.get("source_url"),
+            event.get("event_id"),
+            event.get("event_origin"),
+        ]
+        if any(value not in (None, "") for value in optional_values):
+            row.extend(optional_values)
+            while len(row) > 3 and row[-1] in (None, ""):
+                row.pop()
+        compact.append(row)
     return compact
 
 
@@ -568,6 +815,9 @@ def player_history_id(player: dict[str, object]) -> str:
     fangraphs_id = player.get("fangraphs_id")
     if fangraphs_id is not None:
         return f"fg-{fangraphs_id}"
+    mlbam_id = player.get("mlbam_id")
+    if mlbam_id is not None:
+        return f"mlb-{mlbam_id}"
     player_key = player.get("player_key") or slugify(str(player.get("name") or "player"))
     return f"pk-{player_key}"
 
@@ -617,3 +867,25 @@ def _sum_nullable(*values: float | None) -> float | None:
     if not present:
         return None
     return sum(present)
+
+
+def fetch_json(url: str, query_params: dict[str, object]) -> dict[str, object]:
+    params = {
+        key: value
+        for key, value in query_params.items()
+        if value is not None and value != ""
+    }
+
+    try:
+        response = requests.get(
+            url,
+            params=params,
+            timeout=20,
+            headers={"User-Agent": "career-arc-visualizer/0.1"},
+        )
+        if response.status_code >= 400:
+            return {}
+        payload = response.json()
+        return payload if isinstance(payload, dict) else {}
+    except (requests.RequestException, ValueError):
+        return {}

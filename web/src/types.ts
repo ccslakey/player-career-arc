@@ -33,7 +33,23 @@ export interface EventAnnotation {
   type?: string | null;
   label?: string | null;
   note?: string | null;
+  source?: string | null;
+  confidence?: "high" | "medium" | "low" | string | null;
+  source_url?: string | null;
+  event_id?: string | null;
+  event_origin?: string | null;
 }
+
+export type CompactEventRow = [
+  type: string | null,
+  label: string | null,
+  note: string | null,
+  source?: string | null,
+  confidence?: string | null,
+  sourceUrl?: string | null,
+  eventId?: string | null,
+  eventOrigin?: string | null
+];
 
 export interface SeasonRecord {
   year: number;
@@ -61,7 +77,7 @@ export interface CompactPlayerHistoryPayload {
       playerType: string | null,
       team: string | null,
       statValues?: Array<number | null>,
-      eventValues?: Array<[string | null, string | null, string | null]>,
+      eventValues?: Array<CompactEventRow | EventAnnotation>,
       summary?: string
     ]
   >;

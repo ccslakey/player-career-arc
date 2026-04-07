@@ -1,7 +1,7 @@
 import {extent, format as d3Format, group, line, scaleLinear, scaleOrdinal} from "d3";
 import {type MouseEvent, useMemo, useRef, useState} from "react";
 import {formatMetric} from "../lib/format";
-import type {MetricDefinition, PlayerRecord, TooltipDatum} from "../types";
+import type {EventAnnotation, MetricDefinition, PlayerRecord, TooltipDatum} from "../types";
 
 const PALETTE = [
   "#005f73",
@@ -126,14 +126,18 @@ export function CareerArcChart({
           </div>
           <div>Team: {tooltip.datum.team ?? "Unknown"}</div>
           <div>Role: {tooltip.datum.player_type ?? "Unknown"}</div>
-          {tooltip.datum.summary ? <div className="chart-tooltip-summary">{tooltip.datum.summary}</div> : null}
+          
           {tooltip.datum.events.length ? (
             <div className="chart-tooltip-events">
               <strong>Context</strong>
               {tooltip.datum.events.map((event, index) => (
                 <div key={`${event.label ?? "event"}-${index}`}>
-                  {event.label}
-                  {event.note ? `: ${event.note}` : ""}
+                  <div>{formatEventLine(event)}</div>
+                  {event.source || event.confidence ? (
+                    <div className="chart-tooltip-event-meta">
+                      Source: {event.source ?? "unknown"} · Confidence: {event.confidence ?? "unknown"}
+                    </div>
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -188,4 +192,12 @@ function expandExtent([min, max]: [number | undefined, number | undefined]): [nu
   }
 
   return [min, max];
+}
+
+function formatEventLine(event: EventAnnotation): string {
+  const eventLabel = event.label ?? event.type ?? "Event";
+  if (event.note) {
+    return `${eventLabel}: ${event.note}`;
+  }
+  return eventLabel;
 }

@@ -6,7 +6,7 @@ A starter project for tracking MLB player career arcs with:
 - `pybaseball` for player lookup and season-level stat extraction
 - a Python normalization pipeline that emits chart-friendly JSON
 - a React + TypeScript app with D3 for multi-player comparison
-- annotation support for team changes and injuries
+- annotation support for transactions, awards, milestones, team changes, and injuries
 - a pluggable summary layer for season-by-season narrative blurbs
 
 ## What is included
@@ -14,7 +14,7 @@ A starter project for tracking MLB player career arcs with:
 - Player lookup from a full name or explicit Fangraphs / MLBAM identifier
 - Unified season records for hitters, pitchers, or two-way players
 - Comparison-ready metrics for up to 10 players
-- Tooltip annotations for team changes plus optional manually curated injury events
+- Tooltip annotations with source/confidence metadata and deterministic merge rules
 - A sample dataset so the front end can render before live MLB data is fetched
 
 ## Project layout
@@ -56,6 +56,9 @@ python scripts/build_player_dataset.py \
   --annotations config/annotations.example.csv
 ```
 
+By default, dataset generation prefers MLB Stats API season stats (`--source-preference mlb_statsapi`)
+to avoid Fangraphs scrape blocks.
+
 To pull everyone with at least one at-bat or one pitch in a year range:
 
 ```bash
@@ -63,8 +66,15 @@ python scripts/build_player_dataset.py \
   --all-players \
   --start-year 2020 \
   --end-year 2025 \
+  --source-preference mlb_statsapi \
   --annotations config/annotations.example.csv
 ```
+
+Source options:
+
+- `mlb_statsapi` (default): primary non-Fangraphs source
+- `auto`: try MLB Stats API first, then fall back to Fangraphs if needed
+- `fangraphs`: pybaseball Fangraphs tables only
 
 This writes:
 
@@ -156,11 +166,14 @@ cd web
 node scripts/sync-data.mjs --generate --all-players --start-year 2020 --end-year 2025
 ```
 
+If live generation fails but `data/processed/players.json` already exists, `sync:data` now falls back to that
+last-known-good snapshot and still rebuilds `players_manifest.json` plus `player-history/*`.
+
 ## Data notes
 
 - `pybaseball` is a strong source for player identifiers and season stats.
 - Injury history generally needs a supplemental source or manual curation.
-- This starter project therefore supports an annotation CSV that can add injury notes, milestones, awards, and context to tooltips.
+- This starter supports a unified annotation model that merges manual CSV overrides, official MLB transaction/award events, inferred team changes, and derived milestones.
 - All-player mode filters batting rows to `AB >= 1` and pitching rows to at least one pitch, falling back to batters faced or innings pitched if needed.
 - The frontend export is compacted to reduce transfer and disk size for browser use.
 - For large player pools, the recommended front-end setup is a manifest plus per-player lazy-loaded history files.
@@ -184,6 +197,13 @@ node scripts/sync-data.mjs --generate --all-players --start-year 2020 --end-year
 - `event_type`
 - `label`
 - `note`
+- `source` (optional, defaults to `manual_csv`)
+- `confidence` (optional, defaults from source: `high`/`medium`/`low`)
+- `source_url` (optional)
+- `event_id` (optional)
+- `event_origin` (optional)
+
+Legacy 5-column CSV rows are still accepted and auto-filled with `manual_csv` + `high`.
 
 ## Summary generation
 

@@ -35,6 +35,17 @@ def parse_args() -> argparse.Namespace:
         help="Optional upper year bound. Recommended when using --all-players.",
     )
     parser.add_argument(
+        "--source-preference",
+        choices=("mlb_statsapi", "auto", "fangraphs"),
+        default="mlb_statsapi",
+        help=(
+            "Primary source for season stat tables. "
+            "'mlb_statsapi' avoids Fangraphs scraping; "
+            "'auto' tries MLB Stats API then falls back to Fangraphs; "
+            "'fangraphs' uses pybaseball Fangraphs tables only."
+        ),
+    )
+    parser.add_argument(
         "--annotations",
         default=str(ROOT / "config" / "annotations.example.csv"),
         help="Optional CSV file with injuries, awards, and other tooltip events.",
@@ -62,6 +73,7 @@ def main() -> None:
         include_all_players=args.all_players,
         start_year=args.start_year,
         end_year=args.end_year,
+        source_preference=args.source_preference,
     )
     print(
         f"Wrote {len(dataset['players'])} players to {args.processed_output} and {args.frontend_output}."

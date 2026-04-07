@@ -105,6 +105,24 @@ class SummaryTests(unittest.TestCase):
         self.assertEqual(manifest["players"][0]["i"], "fg-123")
         self.assertEqual(player_history_id(dataset["players"][0]), "fg-123")
 
+    def test_history_manifest_uses_mlbam_ids_when_fangraphs_missing(self) -> None:
+        dataset = {
+            "metadata": {"metrics": [{"key": "avg"}]},
+            "players": [
+                {
+                    "player_key": "mlb-only-player",
+                    "name": "MLB Only Player",
+                    "fangraphs_id": None,
+                    "mlbam_id": 605141,
+                    "seasons": [{"year": 2020, "player_type": "hitter"}],
+                }
+            ],
+        }
+        manifest = build_history_manifest(dataset)
+        self.assertEqual(manifest["players"][0]["i"], "mlb-605141")
+        self.assertEqual(manifest["players"][0]["f"], 605141)
+        self.assertEqual(player_history_id(dataset["players"][0]), "mlb-605141")
+
 
 if __name__ == "__main__":
     unittest.main()

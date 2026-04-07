@@ -1,5 +1,5 @@
 import {useMemo} from "react";
-import type {MetricDefinition, PlayerRecord} from "../types";
+import type {EventAnnotation, MetricDefinition, PlayerRecord} from "../types";
 import {formatMetric} from "../lib/format";
 
 export function SeasonTable({
@@ -21,9 +21,9 @@ export function SeasonTable({
             role: season.player_type,
             metric: season.stats[metric.key] as number,
             events: (season.events ?? [])
-              .map((event) => event.label)
+              .map((event) => formatSeasonEvent(event))
               .filter(Boolean)
-              .join(", "),
+              .join("; "),
             summary: season.summary ?? ""
           }))
       ),
@@ -60,4 +60,15 @@ export function SeasonTable({
       </table>
     </div>
   );
+}
+
+function formatSeasonEvent(event: EventAnnotation): string {
+  const label = event.label ?? event.type ?? "Event";
+  const note = event.note ? `: ${event.note}` : "";
+  const metadataParts = [event.source, event.confidence].filter(Boolean);
+
+  if (metadataParts.length) {
+    return `${label}${note} [${metadataParts.join(" · ")}]`;
+  }
+  return `${label}${note}`;
 }

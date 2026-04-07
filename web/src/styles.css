@@ -252,9 +252,10 @@ table {
   font-weight: 700;
 }
 
-.chart-tooltip-summary,
-.chart-tooltip-events {
-  margin-top: 0.45rem;
+
+.chart-tooltip-event-meta {
+  opacity: 0.82;
+  font-size: 0.8rem;
 }
 
 .chart-legend {
