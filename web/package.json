@@ -5,9 +5,13 @@
   "type": "module",
   "scripts": {
     "sync:data": "node scripts/sync-data.mjs",
+    "sync:data:generate": "node scripts/sync-data.mjs --generate",
+    "sync:data:full": "node scripts/sync-data.mjs --generate --all-players --start-year 1871",
     "sync:data:fixture": "node scripts/write-fixture-data.mjs",
     "dev": "vite",
-    "build": "npm run sync:data && tsc -b && vite build",
+    "build": "npm run sync:data:fixture && npm run sync:data && tsc -b && vite build",
+    "build:with-data": "npm run sync:data:generate && tsc -b && vite build",
+    "build:with-full-data": "npm run sync:data:full && tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest"
