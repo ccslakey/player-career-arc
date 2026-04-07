@@ -111,6 +111,17 @@ cd web
 npm run build:with-data
 ```
 
+To generate the full all-player static dataset for the web app:
+
+```bash
+cd web
+npm run sync:data:full
+```
+
+There is also a manual GitHub Actions workflow named `Generate Full Frontend Data`
+that builds the full static dataset and uploads `web/public/data` plus `data/processed`
+as downloadable workflow artifacts.
+
 `sync:data` also supports a direct generation flag with optional arguments:
 
 ```bash
