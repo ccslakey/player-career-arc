@@ -82,4 +82,61 @@ describe("CareerArcChart", () => {
 
     expect(await screen.findByText("2023-07-12: 15-day IL: Shoulder inflammation.")).toBeInTheDocument();
   });
+
+  it("highlights the hovered legend player's chart data", () => {
+    const view = render(
+      <CareerArcChart
+        players={[
+          {
+            name: "Mike Trout",
+            seasons: [
+              {
+                year: 2023,
+                player_type: "hitter",
+                team: "LAA",
+                stats: {war: 3.0},
+                events: [],
+                summary: ""
+              }
+            ]
+          },
+          {
+            name: "Mookie Betts",
+            seasons: [
+              {
+                year: 2023,
+                player_type: "hitter",
+                team: "LAD",
+                stats: {war: 6.2},
+                events: [],
+                summary: ""
+              }
+            ]
+          }
+        ]}
+        metric={WAR_METRIC}
+        width={640}
+        height={320}
+      />
+    );
+
+    const troutLine = view.container.querySelector('path[data-player-name="Mike Trout"]');
+    const bettsLine = view.container.querySelector('path[data-player-name="Mookie Betts"]');
+    const bettsPoint = view.container.querySelector('circle[data-player-name="Mookie Betts"]');
+    expect(troutLine).toHaveClass("chart-line-highlighted");
+    expect(bettsLine).toHaveClass("chart-line-highlighted");
+    expect(bettsPoint).toHaveClass("chart-point-highlighted");
+
+    const troutLegend = screen.getByRole("button", {name: "Highlight Mike Trout"});
+    fireEvent.mouseEnter(troutLegend);
+
+    expect(troutLine).toHaveClass("chart-line-highlighted");
+    expect(bettsLine).toHaveClass("chart-line-dimmed");
+    expect(bettsPoint).toHaveClass("chart-point-dimmed");
+
+    fireEvent.mouseLeave(troutLegend);
+
+    expect(bettsLine).toHaveClass("chart-line-highlighted");
+    expect(bettsPoint).toHaveClass("chart-point-highlighted");
+  });
 });

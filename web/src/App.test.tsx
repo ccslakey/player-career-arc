@@ -76,7 +76,7 @@ describe("App", () => {
     expect(await screen.findByRole("button", {name: "Remove Mike Trout (2011-2024)"})).toBeInTheDocument();
     expect(await screen.findByRole("button", {name: "Remove Clayton Kershaw (2008-2025)"})).toBeInTheDocument();
     expect(await screen.findByRole("button", {name: "Remove Mookie Betts (2014-2025)"})).toBeInTheDocument();
-    expect(screen.getByRole("combobox")).toHaveValue("war");
+    expect(screen.getByRole("combobox")).toHaveValue("rbi");
     expect(screen.queryByText("Loading selected player histories…")).not.toBeInTheDocument();
 
     await waitFor(() => {

@@ -8,6 +8,7 @@ import type {DataVersionPayload, ManifestPayload, MetricDefinition, PlayerOption
 
 const DEFAULT_PLAYER_NAMES = ["Mike Trout", "Clayton Kershaw", "Mookie Betts"];
 const MAX_SELECTIONS = 10;
+const DEFAULT_METRIC_KEY = "rbi";
 
 export default function App() {
   const [manifest, setManifest] = useState<ManifestPayload | null>(null);
@@ -16,7 +17,7 @@ export default function App() {
   const [manifestRequestNonce, setManifestRequestNonce] = useState(0);
   const [dataVersion, setDataVersion] = useState<DataVersionPayload | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [metricKey, setMetricKey] = useState("war");
+  const [metricKey, setMetricKey] = useState(DEFAULT_METRIC_KEY);
   const [hasInitializedState, setHasInitializedState] = useState(false);
   const [players, setPlayers] = useState<PlayerRecord[]>([]);
   const [playersError, setPlayersError] = useState<string | null>(null);
@@ -101,7 +102,8 @@ export default function App() {
       validPlayerIds: new Set((manifest.players ?? []).map((player) => player.i)),
       validMetricKeys: new Set(metrics.map((metric) => metric.key)),
       fallbackPlayerIds: defaultPlayerIds,
-      fallbackMetricKey: metrics.find((metric) => metric.key === "war")?.key ?? metrics[0]?.key ?? "war"
+      fallbackMetricKey:
+        metrics.find((metric) => metric.key === DEFAULT_METRIC_KEY)?.key ?? metrics[0]?.key ?? DEFAULT_METRIC_KEY
     });
 
     setSelectedIds(initialIds);

@@ -29,6 +29,7 @@ export function CareerArcChart({
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [tooltip, setTooltip] = useState<{datum: TooltipDatum; x: number; y: number} | null>(null);
+  const [highlightedPlayerName, setHighlightedPlayerName] = useState<string | null>(null);
 
   const series = useMemo(() => flattenPlayers(players, metric), [players, metric]);
 
@@ -94,7 +95,10 @@ export function CareerArcChart({
           {groupedSeries.map(([playerName, points]) => (
             <path
               key={playerName}
-              className="chart-line"
+              className={`chart-line ${
+                highlightedPlayerName && highlightedPlayerName !== playerName ? "chart-line-dimmed" : "chart-line-highlighted"
+              }`}
+              data-player-name={playerName}
               d={lineGenerator(points) ?? ""}
               stroke={color(playerName)}
             />
@@ -103,7 +107,12 @@ export function CareerArcChart({
           {series.map((datum) => (
             <circle
               key={`${datum.playerName}-${datum.year}`}
-              className="chart-point"
+              className={`chart-point ${
+                highlightedPlayerName && highlightedPlayerName !== datum.playerName
+                  ? "chart-point-dimmed"
+                  : "chart-point-highlighted"
+              }`}
+              data-player-name={datum.playerName}
               cx={x(datum.year)}
               cy={y(datum.value)}
               r={tooltip?.datum === datum ? 6.5 : 4.5}
@@ -149,10 +158,24 @@ export function CareerArcChart({
 
       <div className="chart-legend">
         {players.map((player) => (
-          <span key={player.name} className="chart-legend-item">
+          <button
+            key={player.name}
+            type="button"
+            className={`chart-legend-item ${
+              highlightedPlayerName && highlightedPlayerName !== player.name
+                ? "chart-legend-item-dimmed"
+                : "chart-legend-item-highlighted"
+            }`}
+            data-player-name={player.name}
+            aria-label={`Highlight ${player.name}`}
+            onMouseEnter={() => setHighlightedPlayerName(player.name)}
+            onMouseLeave={() => setHighlightedPlayerName(null)}
+            onFocus={() => setHighlightedPlayerName(player.name)}
+            onBlur={() => setHighlightedPlayerName(null)}
+          >
             <span className="chart-legend-swatch" style={{background: color(player.name)}} />
             {player.name}
-          </span>
+          </button>
         ))}
       </div>
     </div>
