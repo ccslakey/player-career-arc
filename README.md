@@ -104,6 +104,20 @@ npm run preview
 The React app reads generated front-end data directly from `web/public/data` and validates that
 the manifest plus player-history files are present before `build`.
 
+If you want the web build step to regenerate player data first, use:
+
+```bash
+cd web
+npm run build:with-data
+```
+
+`sync:data` also supports a direct generation flag with optional arguments:
+
+```bash
+cd web
+node scripts/sync-data.mjs --generate --all-players --start-year 2020 --end-year 2025
+```
+
 ## Data notes
 
 - `pybaseball` is a strong source for player identifiers and season stats.

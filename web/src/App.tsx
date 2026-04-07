@@ -13,17 +13,21 @@ export default function App() {
   const [manifest, setManifest] = useState<ManifestPayload | null>(null);
   const [manifestError, setManifestError] = useState<string | null>(null);
   const [manifestLoading, setManifestLoading] = useState(true);
+  const [manifestRequestNonce, setManifestRequestNonce] = useState(0);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [metricKey, setMetricKey] = useState("war");
   const [hasInitializedState, setHasInitializedState] = useState(false);
   const [players, setPlayers] = useState<PlayerRecord[]>([]);
   const [playersError, setPlayersError] = useState<string | null>(null);
   const [playersLoading, setPlayersLoading] = useState(false);
+  const [playersRequestNonce, setPlayersRequestNonce] = useState(0);
   const historyCache = useRef(new Map<string, Promise<PlayerRecord>>());
 
   useEffect(() => {
     const controller = new AbortController();
 
+    setManifest(null);
+    setManifestError(null);
     setManifestLoading(true);
     fetchManifest(controller.signal)
       .then((payload) => {
@@ -43,7 +47,7 @@ export default function App() {
       });
 
     return () => controller.abort();
-  }, []);
+  }, [manifestRequestNonce]);
 
   const metrics = manifest?.metadata.metrics ?? [];
   const metricOrder = useMemo(
@@ -103,12 +107,20 @@ export default function App() {
       return;
     }
 
+    const boundedSelectedIds = selectedIds.slice(0, MAX_SELECTIONS);
+    if (!boundedSelectedIds.length) {
+      setPlayers([]);
+      setPlayersError(null);
+      setPlayersLoading(false);
+      return;
+    }
+
     const controller = new AbortController();
     setPlayersLoading(true);
     setPlayersError(null);
 
     loadSelectedPlayers({
-      selectedIds: selectedIds.slice(0, MAX_SELECTIONS),
+      selectedIds: boundedSelectedIds,
       manifestById,
       historyCache: historyCache.current,
       metricOrder,
@@ -122,6 +134,7 @@ export default function App() {
       })
       .catch((error: Error) => {
         if (!controller.signal.aborted) {
+          setPlayers([]);
           setPlayersError(error.message);
         }
       })
@@ -132,21 +145,59 @@ export default function App() {
       });
 
     return () => controller.abort();
-  }, [hasInitializedState, manifest, manifestById, metricOrder, metrics, selectedIds]);
+  }, [hasInitializedState, manifest, manifestById, metricOrder, metrics, playersRequestNonce, selectedIds]);
 
   const activeMetric = useMemo<MetricDefinition | null>(
     () => metrics.find((metric) => metric.key === metricKey) ?? metrics[0] ?? null,
     [metricKey, metrics]
   );
+  const manifestHasNoPlayers = Boolean(manifest && manifest.players.length === 0);
+  const manifestHasNoMetrics = Boolean(manifest && metrics.length === 0);
+  const noPlayersSelected = hasInitializedState && selectedIds.length === 0;
+  const noPlayerHistoriesFound =
+    hasInitializedState && selectedIds.length > 0 && !playersLoading && !playersError && players.length === 0;
+  const showDataViews = Boolean(activeMetric) && !playersLoading && !playersError && players.length > 0;
 
   if (manifestLoading) {
-    return <main className="page-shell"><div className="panel">Loading player manifest…</div></main>;
+    return (
+      <main className="page-shell">
+        <div className="panel state-panel">Loading player manifest…</div>
+      </main>
+    );
   }
 
   if (manifestError || !manifest) {
     return (
       <main className="page-shell">
-        <div className="panel error-panel">Manifest error: {manifestError ?? "Unknown error"}</div>
+        <div className="panel error-panel state-panel">
+          <p>Manifest request failed: {manifestError ?? "Unknown error"}.</p>
+          <button
+            className="state-action"
+            type="button"
+            onClick={() => setManifestRequestNonce((value) => value + 1)}
+          >
+            Retry manifest request
+          </button>
+        </div>
+      </main>
+    );
+  }
+
+  if (manifestHasNoPlayers || manifestHasNoMetrics) {
+    return (
+      <main className="page-shell">
+        <div className="panel state-panel">
+          <p>Manifest loaded, but it is missing required data.</p>
+          {manifestHasNoPlayers ? <p className="note">No players were found in `players_manifest.json`.</p> : null}
+          {manifestHasNoMetrics ? <p className="note">No metric definitions were found in manifest metadata.</p> : null}
+          <button
+            className="state-action"
+            type="button"
+            onClick={() => setManifestRequestNonce((value) => value + 1)}
+          >
+            Retry manifest request
+          </button>
+        </div>
       </main>
     );
   }
@@ -197,11 +248,39 @@ export default function App() {
         <div className="warning">Only the first 10 selected players are shown at once.</div>
       ) : null}
 
-      {playersError ? <div className="panel error-panel">{playersError}</div> : null}
-      {playersLoading ? <div className="panel">Loading selected player histories…</div> : null}
+      {playersLoading ? <div className="panel state-panel">Loading selected player histories…</div> : null}
+      {playersError ? (
+        <div className="panel error-panel state-panel">
+          <p>Player history request failed: {playersError}</p>
+          <button
+            className="state-action"
+            type="button"
+            onClick={() => setPlayersRequestNonce((value) => value + 1)}
+          >
+            Retry player history request
+          </button>
+        </div>
+      ) : null}
+      {noPlayersSelected ? (
+        <div className="panel state-panel">
+          No players selected yet. Search and add players above to load their season histories.
+        </div>
+      ) : null}
+      {noPlayerHistoriesFound ? (
+        <div className="panel state-panel">
+          <p>No player histories were returned for the current selection.</p>
+          <button
+            className="state-action"
+            type="button"
+            onClick={() => setPlayersRequestNonce((value) => value + 1)}
+          >
+            Retry player history request
+          </button>
+        </div>
+      ) : null}
 
-      {activeMetric ? <CareerArcChart players={players} metric={activeMetric} /> : null}
-      {activeMetric ? <SeasonTable players={players} metric={activeMetric} /> : null}
+      {showDataViews ? <CareerArcChart players={players} metric={activeMetric!} /> : null}
+      {showDataViews ? <SeasonTable players={players} metric={activeMetric!} /> : null}
 
       <div className="panel footer-note">
         <p className="note">

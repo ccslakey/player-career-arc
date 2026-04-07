@@ -173,6 +173,27 @@ table {
   padding: 0.75rem 0.9rem;
 }
 
+.state-panel {
+  margin-bottom: 1rem;
+}
+
+.state-panel p {
+  margin: 0 0 0.55rem;
+}
+
+.state-action {
+  border: 1px solid rgba(24, 32, 40, 0.2);
+  border-radius: 10px;
+  padding: 0.5rem 0.8rem;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.state-action:hover {
+  background: white;
+}
+
 .chart-panel {
   position: relative;
 }
