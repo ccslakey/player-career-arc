@@ -1,21 +1,36 @@
 # Career Arc Visualizer
 [![CI](https://github.com/ccslakey/player-career-arc/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ccslakey/player-career-arc/actions/workflows/ci.yml)
 
-A starter project for tracking MLB player career arcs with:
+Track MLB career arcs with interactive multi-player comparison, season context, and annotation-aware tooltips.
+This project combines a Python data pipeline with a React + D3 frontend so you can move from raw stats to an explorable visual narrative.
 
-- `pybaseball` for player lookup and season-level stat extraction
-- a Python normalization pipeline that emits chart-friendly JSON
-- a React + TypeScript app with D3 for multi-player comparison
-- annotation support for inferred team changes plus injury/activation context
-- a pluggable summary layer for season-by-season narrative blurbs
+## Live Demo
 
-## What is included
+**Open the app:** [https://player-career-arc.vercel.app/](https://player-career-arc.vercel.app/)
 
-- Player lookup from a full name or explicit Fangraphs / MLBAM identifier
-- Unified season records for hitters, pitchers, or two-way players
-- Comparison-ready metrics for up to 10 players
-- Tooltip annotations for team changes plus transaction-derived IL injury/activation events
-- A sample dataset so the front end can render before live MLB data is fetched
+### Try it in 30 seconds
+
+1. Open the demo and review the default 3-player comparison (RBI).
+2. Search and add a different player, then switch metrics.
+3. Hover chart points to inspect season context, including injury/activation annotations.
+
+## Screenshots
+
+![Career Arc Visualizer overview showing default players and RBI metric selection](docs/screenshots/01-overview.png)
+*Overview: default player comparison loaded and ready for metric switching.*
+
+![Legend hover highlighting one player while dimming other chart series](docs/screenshots/02-comparison-highlight.png)
+*Comparison focus: hovering a legend item highlights that player’s series.*
+
+![Chart tooltip showing season context and annotation details](docs/screenshots/03-tooltip-annotations.png)
+*Context drilldown: point hover reveals season stats, summary, and annotations.*
+
+## Core capabilities
+
+- Compare up to 10 players across batting and pitching metrics in one chart view.
+- Load full-history player data with a manifest + lazy-loaded player histories.
+- Enrich seasons with inferred team changes and MLB transaction-derived IL injury/activation events.
+- Generate normalized JSON outputs for both pipeline workflows and frontend consumption.
 
 ## Project layout
 
