@@ -2,10 +2,18 @@ from __future__ import annotations
 
 import csv
 import json
+import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .annotations import infer_team_change_events, load_annotation_index
+from .annotations import (
+    fetch_bulk_transaction_injury_events,
+    fetch_transaction_injury_events,
+    infer_team_change_events,
+    load_annotation_index,
+    merge_annotation_events,
+)
 from .lookup import PlayerRequest, resolve_player
 from .summaries import generate_fallback_summary
 
@@ -77,6 +85,7 @@ def build_dataset(
             seasons = build_player_seasons(
                 resolved.player_name,
                 resolved.fangraphs_id,
+                resolved.mlbam_id,
                 batting_rows,
                 pitching_rows,
                 annotation_index,
@@ -110,6 +119,129 @@ def build_dataset(
         },
         "players": players,
     }
+
+    write_json(processed_output, dataset)
+    write_json(frontend_output, build_frontend_snapshot(dataset))
+    return dataset
+
+
+def apply_annotations_to_dataset(
+    dataset_input: str | Path,
+    annotations_csv: str | Path | None,
+    processed_output: str | Path,
+    frontend_output: str | Path,
+    verbose: bool = False,
+) -> dict[str, object]:
+    dataset_path = Path(dataset_input)
+    if not dataset_path.exists():
+        raise FileNotFoundError(f"Dataset input not found: {dataset_path}")
+
+    dataset = json.loads(dataset_path.read_text(encoding="utf-8"))
+    if not isinstance(dataset, dict):
+        raise ValueError("Dataset input must be a JSON object.")
+
+    annotation_index = load_annotation_index(annotations_csv)
+    players = dataset.get("players")
+    log = print if verbose else None
+    if isinstance(players, list):
+        if log is not None:
+            log(f"[annotations] Loaded {len(players)} players from {dataset_path}.")
+
+        annotatable_players = 0
+        players_with_mlbam = 0
+        min_year: int | None = None
+        max_year: int | None = None
+        mlbam_ids: set[int] = set()
+        for player in players:
+            if not isinstance(player, dict):
+                continue
+            player_name = str(player.get("name") or "").strip()
+            seasons = player.get("seasons")
+            if not player_name or not isinstance(seasons, list):
+                continue
+
+            annotatable_players += 1
+            season_years = [year for year in (_coerce_int(season.get("year")) for season in seasons) if year is not None]
+            if season_years:
+                player_min = min(season_years)
+                player_max = max(season_years)
+                min_year = player_min if min_year is None else min(min_year, player_min)
+                max_year = player_max if max_year is None else max(max_year, player_max)
+
+            mlbam_id = _coerce_int(player.get("mlbam_id"))
+            if mlbam_id is not None:
+                players_with_mlbam += 1
+                mlbam_ids.add(mlbam_id)
+
+        if log is not None:
+            log(
+                f"[annotations] Annotating {annotatable_players} players "
+                f"({players_with_mlbam} with MLBAM ids)."
+            )
+
+        prefetched_injuries: dict[int, list[dict[str, object]]] = {}
+        if mlbam_ids and min_year is not None and max_year is not None:
+            if log is not None:
+                log(
+                    "[annotations] Prefetching MLB transaction injuries "
+                    f"for {len(mlbam_ids)} players across {min_year}-{max_year}."
+                )
+            prefetched_injuries, fetch_stats = fetch_bulk_transaction_injury_events(
+                mlbam_ids=mlbam_ids,
+                start_year=min_year,
+                end_year=max_year,
+                progress_logger=log,
+            )
+            if log is not None:
+                log(
+                    "[annotations] Injury prefetch summary: "
+                    f"years={fetch_stats.years_succeeded}/{fetch_stats.years_requested} succeeded, "
+                    f"failed={fetch_stats.years_failed}, "
+                    f"transactions_scanned={fetch_stats.transactions_scanned}, "
+                    f"target_player_transactions={fetch_stats.transactions_for_target_players}, "
+                    f"injury_events={fetch_stats.injury_events_emitted}."
+                )
+        elif log is not None:
+            log("[annotations] Skipping injury prefetch (no eligible MLBAM ids/year range).")
+
+        progress_start = time.monotonic()
+        progress_processed = 0
+        for player in players:
+            if not isinstance(player, dict):
+                continue
+
+            player_name = str(player.get("name") or "").strip()
+            if not player_name:
+                continue
+
+            seasons = player.get("seasons")
+            if not isinstance(seasons, list):
+                continue
+
+            seasons.sort(key=_season_sort_key)
+            mlbam_id = _coerce_int(player.get("mlbam_id"))
+            enrich_seasons_with_annotations(
+                player_name=player_name,
+                seasons=seasons,
+                annotation_index=annotation_index,
+                player_id=player_history_id(player),
+                mlbam_id=mlbam_id,
+                prefetched_injury_events=prefetched_injuries.get(mlbam_id, []),
+            )
+            progress_processed += 1
+            if log is not None:
+                _print_progress(
+                    prefix="Player annotations",
+                    current=progress_processed,
+                    total=annotatable_players,
+                    started_at=progress_start,
+                )
+        if log is not None and annotatable_players:
+            _finish_progress()
+
+    metadata = dataset.get("metadata")
+    if isinstance(metadata, dict):
+        metadata["generated_at"] = datetime.now(timezone.utc).isoformat()
 
     write_json(processed_output, dataset)
     write_json(frontend_output, build_frontend_snapshot(dataset))
@@ -184,6 +316,8 @@ def build_all_players_dataset(
             batting_rows=grouped["batting"],
             pitching_rows=grouped["pitching"],
             annotation_index=annotation_index,
+            player_id=f"fg-{fangraphs_id}",
+            mlbam_id=None,
         )
         if not seasons:
             continue
@@ -245,6 +379,7 @@ def group_rows_by_player(
 def build_player_seasons(
     player_name: str,
     fangraphs_id: int,
+    mlbam_id: int | None,
     batting_rows: list[dict[str, object]],
     pitching_rows: list[dict[str, object]],
     annotation_index: dict[tuple[str, int], list[object]],
@@ -253,7 +388,14 @@ def build_player_seasons(
 ) -> list[dict[str, object]]:
     batting = filter_player_rows(batting_rows, fangraphs_id, start_year, end_year, "batting")
     pitching = filter_player_rows(pitching_rows, fangraphs_id, start_year, end_year, "pitching")
-    return build_player_seasons_from_rows(player_name, batting, pitching, annotation_index)
+    return build_player_seasons_from_rows(
+        player_name=player_name,
+        batting_rows=batting,
+        pitching_rows=pitching,
+        annotation_index=annotation_index,
+        player_id=f"fg-{fangraphs_id}",
+        mlbam_id=mlbam_id,
+    )
 
 
 def build_player_seasons_from_rows(
@@ -261,6 +403,8 @@ def build_player_seasons_from_rows(
     batting_rows: list[dict[str, object]],
     pitching_rows: list[dict[str, object]],
     annotation_index: dict[tuple[str, int], list[object]],
+    player_id: str | None = None,
+    mlbam_id: int | None = None,
 ) -> list[dict[str, object]]:
     batting = batting_rows
     pitching = pitching_rows
@@ -285,21 +429,103 @@ def build_player_seasons_from_rows(
         batting_row = bundle.get("batting")
         pitching_row = bundle.get("pitching")
         season = normalize_season(player_name, year, batting_row, pitching_row)
-        key = (player_name.lower(), year)
-        extra_events = [event.to_dict() for event in annotation_index.get(key, [])]
-        season["events"] = extra_events
-        season["summary"] = generate_fallback_summary(player_name, season)
         seasons.append(season)
 
-    inferred_events = infer_team_change_events(seasons)
-    event_index = {event["year"]: event for event in inferred_events}
-    for season in seasons:
-        inferred = event_index.get(season["year"])
-        if inferred:
-            season["events"].insert(0, {k: v for k, v in inferred.items() if k != "year"})
-            season["summary"] = generate_fallback_summary(player_name, season)
+    if not seasons:
+        return []
 
+    season_years = [season["year"] for season in seasons if isinstance(season.get("year"), int)]
+    if not season_years:
+        return seasons
+    enrich_seasons_with_annotations(
+        player_name=player_name,
+        seasons=seasons,
+        annotation_index=annotation_index,
+        player_id=player_id,
+        mlbam_id=mlbam_id,
+    )
     return seasons
+
+
+def enrich_seasons_with_annotations(
+    player_name: str,
+    seasons: list[dict[str, object]],
+    annotation_index: dict[tuple[str, int], list[object]],
+    player_id: str | None,
+    mlbam_id: int | None,
+    prefetched_injury_events: list[dict[str, object]] | None = None,
+) -> None:
+    season_years = [season["year"] for season in seasons if isinstance(season.get("year"), int)]
+    if not season_years:
+        for season in seasons:
+            season["events"] = []
+            season["summary"] = generate_fallback_summary(player_name, season)
+        return
+
+    if prefetched_injury_events is not None:
+        injury_events = list(prefetched_injury_events)
+    else:
+        injury_events = fetch_transaction_injury_events(
+            mlbam_id=mlbam_id,
+            start_year=min(season_years),
+            end_year=max(season_years),
+        )
+    inferred_events = infer_team_change_events(seasons)
+    injury_events_by_year = index_events_by_year(injury_events)
+    inferred_events_by_year = index_events_by_year(inferred_events)
+    dedupe_player_id = player_id or slugify(player_name)
+
+    for season in seasons:
+        year = _coerce_int(season.get("year"))
+        if year is None:
+            continue
+
+        candidates: list[dict[str, object]] = []
+        candidates.extend(injury_events_by_year.get(year, []))
+        candidates.extend(inferred_events_by_year.get(year, []))
+        candidates.extend(manual_events_for_year(annotation_index, player_name, year))
+
+        season["events"] = merge_annotation_events(
+            player_id=dedupe_player_id,
+            year=year,
+            candidate_events=candidates,
+        )
+        season["summary"] = generate_fallback_summary(player_name, season)
+
+
+def manual_events_for_year(
+    annotation_index: dict[tuple[str, int], list[object]],
+    player_name: str,
+    year: int,
+) -> list[dict[str, object]]:
+    key = (player_name.lower(), year)
+    manual_events = annotation_index.get(key, [])
+    converted: list[dict[str, object]] = []
+    for manual_event in manual_events:
+        if hasattr(manual_event, "to_dict"):
+            payload = manual_event.to_dict()
+        elif isinstance(manual_event, dict):
+            payload = dict(manual_event)
+        else:
+            continue
+
+        if isinstance(payload, dict):
+            event_payload = dict(payload)
+            event_payload.setdefault("year", year)
+            converted.append(event_payload)
+    return converted
+
+
+def index_events_by_year(events: list[dict[str, object]]) -> dict[int, list[dict[str, object]]]:
+    by_year: dict[int, list[dict[str, object]]] = {}
+    for event in events:
+        if not isinstance(event, dict):
+            continue
+        year = _coerce_int(event.get("year"))
+        if year is None:
+            continue
+        by_year.setdefault(year, []).append(event)
+    return by_year
 
 
 def filter_player_rows(
@@ -336,6 +562,38 @@ def row_matches_filters(
     if stat_type == "pitching":
         return row_has_pitching_activity(row)
     raise ValueError(f"Unknown stat_type: {stat_type}")
+
+
+def _print_progress(prefix: str, current: int, total: int, started_at: float) -> None:
+    if total <= 0:
+        return
+
+    elapsed = max(time.monotonic() - started_at, 0.001)
+    rate = current / elapsed
+    percent = (current / total) * 100
+
+    if sys.stdout.isatty():
+        width = 28
+        filled = int(width * current / total)
+        bar = "#" * filled + "-" * (width - filled)
+        print(
+            f"\r[{prefix}] [{bar}] {current}/{total} ({percent:5.1f}%) "
+            f"{rate:5.1f} players/s",
+            end="",
+            flush=True,
+        )
+        return
+
+    if current == total or current % 500 == 0:
+        print(
+            f"[{prefix}] {current}/{total} ({percent:5.1f}%) "
+            f"{rate:5.1f} players/s"
+        )
+
+
+def _finish_progress() -> None:
+    if sys.stdout.isatty():
+        print()
 
 
 def row_has_batting_activity(row: dict[str, object]) -> bool:
@@ -549,7 +807,18 @@ def compact_events(events: object) -> list[list[object]]:
     for event in events:
         if not isinstance(event, dict):
             continue
-        compact.append([event.get("type"), event.get("label"), event.get("note")])
+        row = [event.get("type"), event.get("label"), event.get("note")]
+        optional_values = [
+            event.get("event_date"),
+            event.get("source"),
+            event.get("source_url"),
+            event.get("event_id"),
+        ]
+        if any(value not in (None, "") for value in optional_values):
+            row.extend(optional_values)
+            while len(row) > 3 and row[-1] in (None, ""):
+                row.pop()
+        compact.append(row)
     return compact
 
 
@@ -617,3 +886,11 @@ def _sum_nullable(*values: float | None) -> float | None:
     if not present:
         return None
     return sum(present)
+
+
+def _season_sort_key(season: object) -> tuple[int, str]:
+    if not isinstance(season, dict):
+        return (0, "")
+    year = _coerce_int(season.get("year")) or 0
+    team = str(season.get("team") or "")
+    return (year, team)

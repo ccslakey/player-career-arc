@@ -1,7 +1,6 @@
-player_name,year,event_type,label,note
-Mike Trout,2017,injury,Thumb surgery,Missed time after tearing a ligament in his left thumb.
-Mike Trout,2021,injury,Calf strain,Lost much of the season to a persistent calf injury.
-Clayton Kershaw,2016,injury,Back issue,Back trouble disrupted his workload and innings total.
-Clayton Kershaw,2023,injury,Shoulder surgery,Underwent shoulder surgery after the season.
-Mookie Betts,2020,award,MVP runner-up,Finished second in National League MVP voting in his first Dodgers season.
-
+player_name,year,event_date,event_type,label,note,source,source_url,event_id
+Mike Trout,2017,2017-05-29,injury,Thumb surgery,Missed time after tearing a ligament in his left thumb.,manual_csv,,manual-trout-thumb-2017
+Mike Trout,2021,2021-05-18,injury,Calf strain,Lost much of the season to a persistent calf injury.,manual_csv,,manual-trout-calf-2021
+Clayton Kershaw,2016,2016-07-01,injury,Back issue,Back trouble disrupted his workload and innings total.,manual_csv,,manual-kershaw-back-2016
+Clayton Kershaw,2023,2023-11-03,injury,Shoulder surgery,Underwent shoulder surgery after the season.,manual_csv,,manual-kershaw-shoulder-2023
+Mookie Betts,2020,,award,MVP runner-up,Finished second in National League MVP voting in his first Dodgers season.,manual_csv,,manual-betts-award-2020
