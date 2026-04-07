@@ -1,5 +1,5 @@
 import {useMemo} from "react";
-import type {MetricDefinition, PlayerRecord} from "../types";
+import type {EventAnnotation, MetricDefinition, PlayerRecord} from "../types";
 import {formatMetric} from "../lib/format";
 
 export function SeasonTable({
@@ -21,9 +21,11 @@ export function SeasonTable({
             role: season.player_type,
             metric: season.stats[metric.key] as number,
             events: (season.events ?? [])
-              .map((event) => event.label)
+              .slice()
+              .sort(compareEventsByDate)
+              .map((event) => formatEvent(event))
               .filter(Boolean)
-              .join(", "),
+              .join("; "),
             summary: season.summary ?? ""
           }))
       ),
@@ -60,4 +62,20 @@ export function SeasonTable({
       </table>
     </div>
   );
+}
+
+function formatEvent(event: EventAnnotation): string {
+  const datePrefix = event.event_date ? `${event.event_date}: ` : "";
+  const label = event.label ?? event.type ?? "Event";
+  const note = event.note ? `: ${event.note}` : "";
+  return `${datePrefix}${label}${note}`;
+}
+
+function compareEventsByDate(a: EventAnnotation, b: EventAnnotation): number {
+  const leftDate = a.event_date ?? "9999-12-31";
+  const rightDate = b.event_date ?? "9999-12-31";
+  if (leftDate !== rightDate) {
+    return leftDate.localeCompare(rightDate);
+  }
+  return (a.label ?? "").localeCompare(b.label ?? "");
 }

@@ -1,7 +1,7 @@
 import {extent, format as d3Format, group, line, scaleLinear, scaleOrdinal} from "d3";
 import {type MouseEvent, useMemo, useRef, useState} from "react";
 import {formatMetric} from "../lib/format";
-import type {MetricDefinition, PlayerRecord, TooltipDatum} from "../types";
+import type {EventAnnotation, MetricDefinition, PlayerRecord, TooltipDatum} from "../types";
 
 const PALETTE = [
   "#005f73",
@@ -118,6 +118,10 @@ export function CareerArcChart({
 
       {tooltip && (
         <div className="chart-tooltip" style={{left: tooltip.x, top: tooltip.y}}>
+          {(() => {
+            const contextLines = buildTooltipContextLines(tooltip.datum.events);
+            return (
+              <>
           <div className="chart-tooltip-title">
             {tooltip.datum.playerName} · {tooltip.datum.year}
           </div>
@@ -127,17 +131,19 @@ export function CareerArcChart({
           <div>Team: {tooltip.datum.team ?? "Unknown"}</div>
           <div>Role: {tooltip.datum.player_type ?? "Unknown"}</div>
           {tooltip.datum.summary ? <div className="chart-tooltip-summary">{tooltip.datum.summary}</div> : null}
-          {tooltip.datum.events.length ? (
+          {contextLines.length ? (
             <div className="chart-tooltip-events">
               <strong>Context</strong>
-              {tooltip.datum.events.map((event, index) => (
-                <div key={`${event.label ?? "event"}-${index}`}>
-                  {event.label}
-                  {event.note ? `: ${event.note}` : ""}
+              {contextLines.map((line, index) => (
+                <div key={`${line}-${index}`}>
+                  {line}
                 </div>
               ))}
             </div>
           ) : null}
+              </>
+            );
+          })()}
         </div>
       )}
 
@@ -188,4 +194,66 @@ function expandExtent([min, max]: [number | undefined, number | undefined]): [nu
   }
 
   return [min, max];
+}
+
+function buildTooltipContextLines(events: EventAnnotation[]): string[] {
+  const sorted = [...(events ?? [])].sort(compareEventsByDate);
+  const injuryQueue: EventAnnotation[] = [];
+  const otherLines: string[] = [];
+
+  for (const event of sorted) {
+    if (event.type === "injury") {
+      injuryQueue.push(event);
+      continue;
+    }
+
+    if (event.type === "activation") {
+      if (injuryQueue.length > 0) {
+        const injury = injuryQueue.shift()!;
+        otherLines.push(`${formatSingleEvent(injury)} -> ${formatSingleEvent(event)}`);
+      } else {
+        otherLines.push(formatSingleEvent(event));
+      }
+      continue;
+    }
+
+    otherLines.push(formatSingleEvent(event));
+  }
+
+  for (const unpairedInjury of injuryQueue) {
+    otherLines.push(formatSingleEvent(unpairedInjury));
+  }
+
+  return otherLines;
+}
+
+function formatSingleEvent(event: EventAnnotation): string {
+  const datePrefix = event.event_date ? `${event.event_date}: ` : "";
+  const label = event.label ?? event.type ?? "Event";
+  const note = event.note ? `: ${event.note}` : "";
+  return `${datePrefix}${label}${note}`;
+}
+
+function compareEventsByDate(a: EventAnnotation, b: EventAnnotation): number {
+  const leftDate = a.event_date ?? "9999-12-31";
+  const rightDate = b.event_date ?? "9999-12-31";
+  if (leftDate !== rightDate) {
+    return leftDate.localeCompare(rightDate);
+  }
+  const leftTypeRank = eventTypeRank(a.type);
+  const rightTypeRank = eventTypeRank(b.type);
+  if (leftTypeRank !== rightTypeRank) {
+    return leftTypeRank - rightTypeRank;
+  }
+  return (a.label ?? "").localeCompare(b.label ?? "");
+}
+
+function eventTypeRank(type: string | null | undefined): number {
+  if (type === "injury") {
+    return 0;
+  }
+  if (type === "activation") {
+    return 1;
+  }
+  return 2;
 }
