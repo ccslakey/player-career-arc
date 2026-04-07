@@ -12,6 +12,8 @@
     "build": "npm run sync:data:fixture && npm run sync:data && tsc -b && vite build",
     "build:with-data": "npm run sync:data:generate && tsc -b && vite build",
     "build:with-full-data": "npm run sync:data:full && tsc -b && vite build",
+    "blob:upload": "node scripts/upload-blob-data.mjs",
+    "blob:publish:latest": "npm run sync:data:full && npm run blob:upload -- --prefix latest",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest"
@@ -28,6 +30,7 @@
     "@types/d3": "^7.4.3",
     "@types/react": "^18.3.23",
     "@types/react-dom": "^18.3.7",
+    "@vercel/blob": "^2.3.3",
     "@vitejs/plugin-react": "^4.4.1",
     "jsdom": "^26.1.0",
     "typescript": "^5.8.3",
