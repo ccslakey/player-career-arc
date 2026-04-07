@@ -3,6 +3,11 @@ name: Publish Full Data To Vercel Blob
 on:
   workflow_dispatch:
     inputs:
+      generate:
+        description: "Generate full data before upload (set false for upload-only runs)"
+        required: true
+        type: boolean
+        default: true
       prefix:
         description: "Blob prefix (use latest for no app redeploy, or releases/<id> for immutable versions)"
         required: true
@@ -15,6 +20,20 @@ on:
         description: "Last season to include (leave blank to use current year)"
         required: false
         default: ""
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/publish-blob-data.yml
+      - scripts/build_player_dataset.py
+      - scripts/build_frontend_store.py
+      - src/career_arc/**
+      - config/players.example.csv
+      - config/annotations.example.csv
+      - web/scripts/sync-data.mjs
+      - web/scripts/upload-blob-data.mjs
+  schedule:
+    - cron: "17 9 * * 1"
 
 permissions:
   contents: read
@@ -23,12 +42,39 @@ jobs:
   publish:
     name: Generate and upload static data
     runs-on: ubuntu-latest
+    concurrency:
+      group: publish-blob-data-main
+      cancel-in-progress: false
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Resolve publish parameters
+        id: params
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_GENERATE: ${{ github.event.inputs.generate }}
+          INPUT_PREFIX: ${{ github.event.inputs.prefix }}
+          INPUT_START_YEAR: ${{ github.event.inputs.start_year }}
+          INPUT_END_YEAR: ${{ github.event.inputs.end_year }}
+        run: |
+          PREFIX="${INPUT_PREFIX:-latest}"
+          START_YEAR="${INPUT_START_YEAR:-1871}"
+          END_YEAR="${INPUT_END_YEAR:-}"
+          GENERATE="${INPUT_GENERATE:-true}"
+
+          if [ "$EVENT_NAME" != "workflow_dispatch" ]; then
+            GENERATE="true"
+          fi
+
+          echo "prefix=$PREFIX" >> "$GITHUB_OUTPUT"
+          echo "start_year=$START_YEAR" >> "$GITHUB_OUTPUT"
+          echo "end_year=$END_YEAR" >> "$GITHUB_OUTPUT"
+          echo "generate=$GENERATE" >> "$GITHUB_OUTPUT"
+
       - name: Set up Python
+        if: ${{ steps.params.outputs.generate == 'true' }}
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -42,6 +88,7 @@ jobs:
           cache-dependency-path: web/package-lock.json
 
       - name: Install Python dependencies
+        if: ${{ steps.params.outputs.generate == 'true' }}
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e .
@@ -51,21 +98,35 @@ jobs:
         run: npm ci
 
       - name: Generate full frontend dataset
+        if: ${{ steps.params.outputs.generate == 'true' }}
         working-directory: web
         run: |
-          ARGS="scripts/sync-data.mjs --generate --all-players --start-year ${{ inputs.start_year }}"
-          if [ -n "${{ inputs.end_year }}" ]; then
-            ARGS="$ARGS --end-year ${{ inputs.end_year }}"
+          ARGS="scripts/sync-data.mjs --generate --all-players --start-year ${{ steps.params.outputs.start_year }}"
+          if [ -n "${{ steps.params.outputs.end_year }}" ]; then
+            ARGS="$ARGS --end-year ${{ steps.params.outputs.end_year }}"
           fi
           node $ARGS
+
+      - name: Validate frontend data directory for upload-only run
+        if: ${{ steps.params.outputs.generate != 'true' }}
+        working-directory: web
+        run: node scripts/sync-data.mjs
 
       - name: Upload data to Vercel Blob
         working-directory: web
         env:
           BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+          BLOB_PREFIX: ${{ steps.params.outputs.prefix }}
+          DATA_START_YEAR: ${{ steps.params.outputs.start_year }}
+          DATA_END_YEAR: ${{ steps.params.outputs.end_year }}
+          GITHUB_SHA: ${{ github.sha }}
         run: |
           if [ -z "$BLOB_READ_WRITE_TOKEN" ]; then
             echo "Missing BLOB_READ_WRITE_TOKEN secret."
             exit 1
           fi
-          node scripts/upload-blob-data.mjs --prefix "${{ inputs.prefix }}"
+          if [ -n "$DATA_END_YEAR" ]; then
+            node scripts/upload-blob-data.mjs --prefix "$BLOB_PREFIX" --start-year "$DATA_START_YEAR" --end-year "$DATA_END_YEAR"
+            exit 0
+          fi
+          node scripts/upload-blob-data.mjs --prefix "$BLOB_PREFIX" --start-year "$DATA_START_YEAR"

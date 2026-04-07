@@ -29,6 +29,21 @@ export interface ManifestPayload {
   players: ManifestPlayerEntry[];
 }
 
+export interface DataVersionPayload {
+  uploaded_at: string;
+  prefix: string;
+  git_sha?: string | null;
+  source?: {
+    start_year?: number | null;
+    end_year?: number | null;
+  };
+  manifest?: {
+    player_count?: number;
+    metric_count?: number;
+    selection_mode?: string | null;
+  };
+}
+
 export interface EventAnnotation {
   type?: string | null;
   label?: string | null;
