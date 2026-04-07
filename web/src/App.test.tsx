@@ -113,7 +113,9 @@ describe("App", () => {
     render(<App />);
 
     await screen.findByRole("heading", {name: "Career arcs, season by season."});
-    expect(screen.getByText("No players selected yet. Search and add players above to load their season histories.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("No players selected yet. Search and add players above to load their season histories.")
+    ).toBeInTheDocument();
   });
 
   it("shows a player-history fetch error state with retry", async () => {
