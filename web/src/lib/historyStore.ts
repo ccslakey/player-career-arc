@@ -1,6 +1,7 @@
 import {normalizeDataset} from "./normalizeDataset";
 import type {
   CompactPlayerHistoryPayload,
+  DataVersionPayload,
   ManifestPayload,
   ManifestPlayerEntry,
   MetricDefinition,
@@ -16,6 +17,20 @@ export async function fetchManifest(signal?: AbortSignal): Promise<ManifestPaylo
     throw new Error(`Failed to load manifest: ${response.status}`);
   }
   return response.json() as Promise<ManifestPayload>;
+}
+
+export async function fetchDataVersion(signal?: AbortSignal): Promise<DataVersionPayload | null> {
+  if (!configuredDataBaseUrl) {
+    return null;
+  }
+  const response = await fetch(dataAssetUrl("data-version.json"), {signal});
+  if (response.status === 404) {
+    return null;
+  }
+  if (!response.ok) {
+    throw new Error(`Failed to load data version: ${response.status}`);
+  }
+  return response.json() as Promise<DataVersionPayload>;
 }
 
 export async function loadSelectedPlayers({

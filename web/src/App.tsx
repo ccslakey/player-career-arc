@@ -2,9 +2,9 @@ import {useEffect, useMemo, useRef, useState} from "react";
 import {CareerArcChart} from "./components/CareerArcChart";
 import {PlayerPicker} from "./components/PlayerPicker";
 import {SeasonTable} from "./components/SeasonTable";
-import {fetchManifest, loadSelectedPlayers} from "./lib/historyStore";
+import {fetchDataVersion, fetchManifest, loadSelectedPlayers} from "./lib/historyStore";
 import {parseUrlState, writeUrlState} from "./lib/urlState";
-import type {ManifestPayload, MetricDefinition, PlayerOption, PlayerRecord} from "./types";
+import type {DataVersionPayload, ManifestPayload, MetricDefinition, PlayerOption, PlayerRecord} from "./types";
 
 const DEFAULT_PLAYER_NAMES = ["Mike Trout", "Clayton Kershaw", "Mookie Betts"];
 const MAX_SELECTIONS = 10;
@@ -14,6 +14,7 @@ export default function App() {
   const [manifestError, setManifestError] = useState<string | null>(null);
   const [manifestLoading, setManifestLoading] = useState(true);
   const [manifestRequestNonce, setManifestRequestNonce] = useState(0);
+  const [dataVersion, setDataVersion] = useState<DataVersionPayload | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [metricKey, setMetricKey] = useState("war");
   const [hasInitializedState, setHasInitializedState] = useState(false);
@@ -29,6 +30,8 @@ export default function App() {
     setManifest(null);
     setManifestError(null);
     setManifestLoading(true);
+    setDataVersion(null);
+
     fetchManifest(controller.signal)
       .then((payload) => {
         setManifest(payload);
@@ -43,6 +46,18 @@ export default function App() {
       .finally(() => {
         if (!controller.signal.aborted) {
           setManifestLoading(false);
+        }
+      });
+
+    fetchDataVersion(controller.signal)
+      .then((payload) => {
+        if (!controller.signal.aborted) {
+          setDataVersion(payload);
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setDataVersion(null);
         }
       });
 
@@ -286,7 +301,29 @@ export default function App() {
         <p className="note">
           Mode: {manifest.metadata.selection_mode}. Notes: {(manifest.metadata.notes ?? []).join(" ")}
         </p>
+        <p className="note">Data version: {formatDataVersion(dataVersion)}</p>
       </div>
     </main>
   );
+}
+
+function formatDataVersion(dataVersion: DataVersionPayload | null): string {
+  if (!dataVersion) {
+    return "Unavailable";
+  }
+
+  const segments = [dataVersion.prefix];
+  if (dataVersion.manifest?.player_count != null) {
+    segments.push(`${dataVersion.manifest.player_count.toLocaleString()} players`);
+  }
+  if (dataVersion.git_sha) {
+    segments.push(`sha ${dataVersion.git_sha.slice(0, 7)}`);
+  }
+
+  const uploadedAt = new Date(dataVersion.uploaded_at);
+  if (!Number.isNaN(uploadedAt.getTime())) {
+    segments.push(uploadedAt.toLocaleString());
+  }
+
+  return segments.join(" · ");
 }

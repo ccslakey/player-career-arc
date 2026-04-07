@@ -118,10 +118,6 @@ cd web
 npm run sync:data:full
 ```
 
-There is also a manual GitHub Actions workflow named `Generate Full Frontend Data`
-that builds the full static dataset and uploads `web/public/data` plus `data/processed`
-as downloadable workflow artifacts.
-
 ## Vercel Blob data hosting
 
 The app supports loading manifest and player-history files from a Vercel Blob base URL.
@@ -146,8 +142,14 @@ cd web
 npm run blob:upload -- --prefix releases/2026-04-07
 ```
 
-For automation, run the manual GitHub Actions workflow `Publish Full Data To Vercel Blob`.
-It requires the repository secret `BLOB_READ_WRITE_TOKEN`.
+For automation, use the GitHub Actions workflow `Publish Full Data To Vercel Blob`.
+
+- Manual runs support `generate=true|false` so you can do either full generate+upload or upload-only.
+- Automatic runs are scheduled weekly and also trigger on `main` when data-pipeline files change.
+- Required repository secret: `BLOB_READ_WRITE_TOKEN`.
+
+Each publish also writes `data-version.json` (prefix, upload timestamp, git SHA, and manifest counts),
+and the app footer surfaces this version string for quick observability in production.
 
 `sync:data` also supports a direct generation flag with optional arguments:
 

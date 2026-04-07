@@ -3,6 +3,8 @@ import {readdir, readFile, stat} from "node:fs/promises";
 import {relative, resolve, sep} from "node:path";
 
 const webRoot = resolve(import.meta.dirname, "..");
+const MANIFEST_FILE = "players_manifest.json";
+const DATA_VERSION_FILE = "data-version.json";
 
 const options = parseArgs(process.argv.slice(2));
 
@@ -29,8 +31,13 @@ if (!options.dryRun && !token) {
 }
 
 const mutablePrefix = normalizedPrefix === "latest" || normalizedPrefix.startsWith("latest/");
+const dataVersionPayload = await buildDataVersionPayload({
+  sourceDir,
+  prefix: normalizedPrefix
+});
 
 let manifestUrl = null;
+let versionUrl = null;
 let uploaded = 0;
 let failed = 0;
 let nextIndex = 0;
@@ -42,10 +49,28 @@ if (failed > 0) {
   throw new Error(`Blob upload finished with ${failed} failed file(s).`);
 }
 
+if (options.dryRun) {
+  console.log(`[dry-run] ${DATA_VERSION_FILE} -> ${normalizedPrefix}/${DATA_VERSION_FILE}`);
+  uploaded += 1;
+} else {
+  const cacheControlMaxAge = cacheTtl(DATA_VERSION_FILE, mutablePrefix);
+  const result = await put(`${normalizedPrefix}/${DATA_VERSION_FILE}`, JSON.stringify(dataVersionPayload), {
+    access: "public",
+    token,
+    addRandomSuffix: false,
+    allowOverwrite: true,
+    contentType: "application/json",
+    cacheControlMaxAge
+  });
+  versionUrl = result.url;
+  uploaded += 1;
+  console.log(`[upload] ${DATA_VERSION_FILE} -> ${normalizedPrefix}/${DATA_VERSION_FILE} (ttl ${cacheControlMaxAge}s)`);
+}
+
 console.log(`Uploaded ${uploaded} JSON files to prefix "${normalizedPrefix}".`);
 
-if (manifestUrl) {
-  const baseUrl = manifestUrl.replace(/\/players_manifest\.json$/, "");
+if (manifestUrl || versionUrl) {
+  const baseUrl = (manifestUrl ?? versionUrl).replace(/\/[^/]+$/, "");
   console.log(`Data base URL: ${baseUrl}`);
 }
 
@@ -76,7 +101,7 @@ async function runWorker() {
           cacheControlMaxAge
         });
 
-        if (relativePath === "players_manifest.json") {
+        if (relativePath === MANIFEST_FILE) {
           manifestUrl = result.url;
         }
 
@@ -92,13 +117,48 @@ async function runWorker() {
 }
 
 function cacheTtl(relativePath, mutable) {
-  if (relativePath === "players_manifest.json") {
+  if (relativePath === MANIFEST_FILE || relativePath === DATA_VERSION_FILE) {
     return mutable ? 60 : 31536000;
   }
   if (relativePath.startsWith("player-history/")) {
     return mutable ? 3600 : 31536000;
   }
   return mutable ? 3600 : 31536000;
+}
+
+async function buildDataVersionPayload({sourceDir, prefix}) {
+  const source = {
+    start_year: optionalNumber(options.startYear || process.env.DATA_START_YEAR),
+    end_year: optionalNumber(options.endYear || process.env.DATA_END_YEAR)
+  };
+  const manifestSummary = await loadManifestSummary(sourceDir);
+
+  return {
+    uploaded_at: new Date().toISOString(),
+    prefix,
+    git_sha: process.env.GITHUB_SHA ?? null,
+    source,
+    manifest: manifestSummary
+  };
+}
+
+async function loadManifestSummary(sourceDir) {
+  const manifestPath = resolve(sourceDir, MANIFEST_FILE);
+  try {
+    const rawManifest = await readFile(manifestPath, "utf-8");
+    const manifest = JSON.parse(rawManifest);
+    return {
+      player_count: Array.isArray(manifest.players) ? manifest.players.length : undefined,
+      metric_count: Array.isArray(manifest.metadata?.metrics) ? manifest.metadata.metrics.length : undefined,
+      selection_mode: manifest.metadata?.selection_mode ?? null
+    };
+  } catch {
+    return {
+      player_count: undefined,
+      metric_count: undefined,
+      selection_mode: null
+    };
+  }
 }
 
 async function listFiles(directoryPath) {
@@ -125,11 +185,22 @@ function normalizePrefix(prefix) {
   return normalized;
 }
 
+function optionalNumber(value) {
+  if (value == null || value === "") {
+    return null;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function parseArgs(argv) {
   const parsed = {
     source: "public/data",
     prefix: "latest",
     concurrency: 12,
+    startYear: "",
+    endYear: "",
     token: "",
     dryRun: false,
     help: false
@@ -146,6 +217,12 @@ function parseArgs(argv) {
         break;
       case "--concurrency":
         parsed.concurrency = Number(requiredValue(argv, ++index, "--concurrency"));
+        break;
+      case "--start-year":
+        parsed.startYear = requiredValue(argv, ++index, "--start-year");
+        break;
+      case "--end-year":
+        parsed.endYear = requiredValue(argv, ++index, "--end-year");
         break;
       case "--token":
         parsed.token = requiredValue(argv, ++index, "--token");
@@ -185,6 +262,8 @@ Options:
   --source <path>        Source directory to upload (default: public/data)
   --prefix <prefix>      Blob path prefix (default: latest)
   --concurrency <n>      Number of parallel uploads (default: 12)
+  --start-year <year>    Optional metadata value written to data-version.json
+  --end-year <year>      Optional metadata value written to data-version.json
   --token <token>        Vercel Blob read/write token (or use BLOB_READ_WRITE_TOKEN env var)
   --dry-run              Show planned uploads without writing blobs
   --help                 Show help

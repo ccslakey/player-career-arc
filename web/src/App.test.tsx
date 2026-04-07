@@ -8,18 +8,29 @@ function installFetchMock({
   manifestPayload = testManifest,
   manifestStatuses = [200],
   historyPayloads = playerHistories,
-  historyStatuses = {}
+  historyStatuses = {},
+  dataVersionPayload = {
+    uploaded_at: "2026-04-06T00:00:00.000Z",
+    prefix: "latest",
+    git_sha: "abcdef1234567890",
+    manifest: {
+      player_count: testManifest.players.length,
+      metric_count: testManifest.metadata.metrics.length,
+      selection_mode: testManifest.metadata.selection_mode ?? null
+    }
+  }
 }: {
   manifestPayload?: unknown;
   manifestStatuses?: number[];
   historyPayloads?: Record<string, unknown>;
   historyStatuses?: Record<string, number>;
+  dataVersionPayload?: unknown | null;
 } = {}) {
   let manifestRequestCount = 0;
   const fetchMock = vi.fn((input: RequestInfo | URL) => {
     const url = String(input);
 
-    if (url.endsWith("/data/players_manifest.json")) {
+    if (url.includes("/players_manifest.json")) {
       const status = manifestStatuses[Math.min(manifestRequestCount, manifestStatuses.length - 1)] ?? 200;
       manifestRequestCount += 1;
       if (status >= 400) {
@@ -28,7 +39,14 @@ function installFetchMock({
       return Promise.resolve(jsonResponse(manifestPayload));
     }
 
-    const historyId = Object.keys(historyPayloads).find((id) => url.endsWith(`/data/player-history/${id}.json`));
+    if (url.includes("/data-version.json")) {
+      if (dataVersionPayload == null) {
+        return Promise.resolve(jsonResponse({error: "version missing"}, {status: 404}));
+      }
+      return Promise.resolve(jsonResponse(dataVersionPayload));
+    }
+
+    const historyId = Object.keys(historyPayloads).find((id) => url.includes(`/player-history/${id}.json`));
     if (historyId) {
       const status = historyStatuses[historyId] ?? 200;
       if (status >= 400) {
@@ -65,10 +83,10 @@ describe("App", () => {
       expect(screen.getByText("MVP-caliber season.")).toBeInTheDocument();
     });
 
-    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/data/players_manifest.json"), expect.any(Object));
-    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/data/player-history/fg-10155.json"), expect.any(Object));
-    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/data/player-history/fg-2036.json"), expect.any(Object));
-    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/data/player-history/fg-13611.json"), expect.any(Object));
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("players_manifest.json"), expect.any(Object));
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/player-history/fg-10155.json"), expect.any(Object));
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/player-history/fg-2036.json"), expect.any(Object));
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/player-history/fg-13611.json"), expect.any(Object));
   });
 
   it("restores selected players and metric from the URL", async () => {
@@ -97,8 +115,8 @@ describe("App", () => {
     await user.click(screen.getByRole("button", {name: "Retry manifest request"}));
 
     await screen.findByRole("heading", {name: "Career arcs, season by season."});
-    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/data/players_manifest.json"), expect.any(Object));
-    expect(fetchMock.mock.calls.filter(([url]) => String(url).includes("/data/players_manifest.json")).length).toBe(2);
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("players_manifest.json"), expect.any(Object));
+    expect(fetchMock.mock.calls.filter(([url]) => String(url).includes("players_manifest.json")).length).toBe(2);
   });
 
   it("shows an empty selection state when no default players exist in the manifest", async () => {
