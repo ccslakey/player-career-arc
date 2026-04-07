@@ -1,10 +1,13 @@
-import {put} from "@vercel/blob";
+import {BlobServiceNotAvailable, BlobServiceRateLimited, BlobUnknownError, put} from "@vercel/blob";
 import {readdir, readFile, stat} from "node:fs/promises";
 import {relative, resolve, sep} from "node:path";
 
 const webRoot = resolve(import.meta.dirname, "..");
 const MANIFEST_FILE = "players_manifest.json";
 const DATA_VERSION_FILE = "data-version.json";
+const DEFAULT_MAX_UPLOAD_ATTEMPTS = 6;
+const DEFAULT_BASE_BACKOFF_MS = 500;
+const DEFAULT_MAX_BACKOFF_MS = 30_000;
 
 const options = parseArgs(process.argv.slice(2));
 
@@ -54,13 +57,12 @@ if (options.dryRun) {
   uploaded += 1;
 } else {
   const cacheControlMaxAge = cacheTtl(DATA_VERSION_FILE, mutablePrefix);
-  const result = await put(`${normalizedPrefix}/${DATA_VERSION_FILE}`, JSON.stringify(dataVersionPayload), {
-    access: "public",
-    token,
-    addRandomSuffix: false,
-    allowOverwrite: true,
-    contentType: "application/json",
-    cacheControlMaxAge
+  const result = await putWithRetries({
+    blobPath: `${normalizedPrefix}/${DATA_VERSION_FILE}`,
+    relativePath: DATA_VERSION_FILE,
+    payload: JSON.stringify(dataVersionPayload),
+    cacheControlMaxAge,
+    token
   });
   versionUrl = result.url;
   uploaded += 1;
@@ -92,13 +94,12 @@ async function runWorker() {
         console.log(`[dry-run] ${relativePath} -> ${blobPath}`);
       } else {
         const payload = await readFile(filePath);
-        const result = await put(blobPath, payload, {
-          access: "public",
-          token,
-          addRandomSuffix: false,
-          allowOverwrite: true,
-          contentType: "application/json",
-          cacheControlMaxAge
+        const result = await putWithRetries({
+          blobPath,
+          relativePath,
+          payload,
+          cacheControlMaxAge,
+          token
         });
 
         if (relativePath === MANIFEST_FILE) {
@@ -114,6 +115,75 @@ async function runWorker() {
       console.error(`[error] Failed upload for ${relativePath}:`, error);
     }
   }
+}
+
+async function putWithRetries({
+  blobPath,
+  relativePath,
+  payload,
+  cacheControlMaxAge,
+  token
+}) {
+  for (let attempt = 1; attempt <= DEFAULT_MAX_UPLOAD_ATTEMPTS; attempt += 1) {
+    try {
+      return await put(blobPath, payload, {
+        access: "public",
+        token,
+        addRandomSuffix: false,
+        allowOverwrite: true,
+        contentType: "application/json",
+        cacheControlMaxAge
+      });
+    } catch (error) {
+      const waitMs = getRetryDelayMs(error, attempt);
+      if (waitMs === null || attempt === DEFAULT_MAX_UPLOAD_ATTEMPTS) {
+        throw error;
+      }
+
+      console.warn(
+        `[retry] ${relativePath} failed on attempt ${attempt}/${DEFAULT_MAX_UPLOAD_ATTEMPTS}; waiting ${waitMs}ms before retry (${errorSummary(error)})`
+      );
+      await sleep(waitMs);
+    }
+  }
+
+  throw new Error(`Upload failed after ${DEFAULT_MAX_UPLOAD_ATTEMPTS} attempts for ${relativePath}`);
+}
+
+function getRetryDelayMs(error, attempt) {
+  if (error instanceof BlobServiceRateLimited) {
+    const retryAfterSeconds = Number.isFinite(error.retryAfter) && error.retryAfter > 0 ? error.retryAfter : 60;
+    const jitterMs = Math.floor(Math.random() * 750);
+    return retryAfterSeconds * 1000 + jitterMs;
+  }
+
+  if (error instanceof BlobServiceNotAvailable || error instanceof BlobUnknownError || isNetworkLikeError(error)) {
+    const exponential = Math.min(DEFAULT_BASE_BACKOFF_MS * 2 ** (attempt - 1), DEFAULT_MAX_BACKOFF_MS);
+    const jitter = Math.floor(Math.random() * Math.max(250, Math.floor(exponential * 0.25)));
+    return exponential + jitter;
+  }
+
+  return null;
+}
+
+function isNetworkLikeError(error) {
+  if (error instanceof TypeError) {
+    return true;
+  }
+
+  const code = typeof error === "object" && error !== null && "code" in error ? String(error.code) : "";
+  return ["ECONNRESET", "ETIMEDOUT", "ENOTFOUND", "EAI_AGAIN", "UND_ERR_CONNECT_TIMEOUT"].includes(code);
+}
+
+function errorSummary(error) {
+  if (error instanceof Error) {
+    return `${error.name}: ${error.message}`;
+  }
+  return String(error);
+}
+
+function sleep(ms) {
+  return new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
 }
 
 function cacheTtl(relativePath, mutable) {
