@@ -272,79 +272,33 @@ def _build_war_lookup(war_frame) -> dict[tuple[int, int], float]:
     return {(int(mlb_id), int(year)): float(war) for (mlb_id, year), war in totals.items()}
 
 
-BREF_RANGE_MIN_YEAR = 2008
-
-
 def load_pybaseball_tables(start_year: int = 1900, end_year: int = datetime.now().year) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
-    from pybaseball import cache
+    from pybaseball import bwar_bat, bwar_pitch, cache
+    from .bref_scrape import attach_mlb_ids, scrape_bref_season
 
     cache.enable()
-
-    needs_bref_lookup = end_year >= BREF_RANGE_MIN_YEAR
-    bat_war_lookup: dict[tuple[int, int], float] = {}
-    pitch_war_lookup: dict[tuple[int, int], float] = {}
-    if needs_bref_lookup:
-        from pybaseball import batting_stats_bref, bwar_bat, bwar_pitch, pitching_stats_bref
-        print("Loading Baseball Reference WAR tables...")
-        bat_war_lookup = _build_war_lookup(bwar_bat())
-        pitch_war_lookup = _build_war_lookup(bwar_pitch())
+    print("Loading Baseball Reference WAR tables...")
+    bat_war_lookup = _build_war_lookup(bwar_bat())
+    pitch_war_lookup = _build_war_lookup(bwar_pitch())
 
     batting_rows: list[dict[str, object]] = []
     pitching_rows: list[dict[str, object]] = []
-
     bref_scrape_cache = Path(cache.config.cache_directory) / "career-arc-bref"
 
     for year in range(start_year, end_year + 1):
-        if year < BREF_RANGE_MIN_YEAR:
-            batting_rows.extend(_load_pre_2008_year(year, "batting", bref_scrape_cache))
-            pitching_rows.extend(_load_pre_2008_year(year, "pitching", bref_scrape_cache))
-            continue
-
-        print(f"Loading Baseball Reference batting data for {year}")
-        batting_frame = batting_stats_bref(year)
-        if batting_frame is not None and not batting_frame.empty:
-            batting_frame = batting_frame[batting_frame["Lev"].str.startswith("Maj", na=False)].copy()
-            batting_frame["Season"] = year
-            rows = batting_frame.to_dict(orient="records")
+        for stat_type, target in (("batting", batting_rows), ("pitching", pitching_rows)):
+            print(f"Loading Baseball Reference {stat_type} data for {year}")
+            rows = scrape_bref_season(year, stat_type, bref_scrape_cache)
+            attach_mlb_ids(rows)
+            war_lookup = bat_war_lookup if stat_type == "batting" else pitch_war_lookup
             for row in rows:
                 mlb_id = row.get("mlbID")
-                if mlb_id is not None:
-                    row["WAR"] = bat_war_lookup.get((int(mlb_id), year))
+                if mlb_id is not None and "WAR" not in row:
+                    row["WAR"] = war_lookup.get((int(mlb_id), year))
                 _normalize_row(row)
-            batting_rows.extend(rows)
-
-        print(f"Loading Baseball Reference pitching data for {year}")
-        pitching_frame = pitching_stats_bref(year)
-        if pitching_frame is not None and not pitching_frame.empty:
-            pitching_frame = pitching_frame[pitching_frame["Lev"].str.startswith("Maj", na=False)].copy()
-            pitching_frame["Season"] = year
-            rows = pitching_frame.to_dict(orient="records")
-            for row in rows:
-                mlb_id = row.get("mlbID")
-                if mlb_id is not None:
-                    row["WAR"] = pitch_war_lookup.get((int(mlb_id), year))
-                _normalize_row(row)
-            pitching_rows.extend(rows)
+            target.extend(rows)
 
     return batting_rows, pitching_rows
-
-
-def _load_pre_2008_year(year: int, stat_type: str, cache_dir: Path) -> list[dict[str, object]]:
-    """Scrape a single pre-2008 season directly from baseball-reference.com.
-
-    pybaseball's batting_stats_bref / pitching_stats_bref refuse years before
-    2008, so we hit the season's standard-batting / standard-pitching page
-    ourselves. The bref_scrape module honors Crawl-delay: 3 and caches
-    pages on disk so re-runs don't re-fetch.
-    """
-    from .bref_scrape import attach_mlb_ids, scrape_bref_season
-
-    print(f"Loading Baseball Reference {stat_type} data for {year} (direct scrape)")
-    rows = scrape_bref_season(year, stat_type, cache_dir)
-    attach_mlb_ids(rows)
-    for row in rows:
-        _normalize_row(row)
-    return rows
 
 
 def build_all_players_dataset(

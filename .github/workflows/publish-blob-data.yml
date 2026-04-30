@@ -80,6 +80,16 @@ jobs:
           python-version: "3.12"
           cache: pip
 
+      - name: Cache Baseball Reference scrape pages
+        if: ${{ steps.params.outputs.generate == 'true' }}
+        uses: actions/cache@v4
+        with:
+          path: ~/.pybaseball/cache
+          key: bref-scrape-${{ steps.params.outputs.start_year }}-${{ steps.params.outputs.end_year }}
+          restore-keys: |
+            bref-scrape-${{ steps.params.outputs.start_year }}-
+            bref-scrape-
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
