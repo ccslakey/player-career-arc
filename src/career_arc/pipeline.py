@@ -297,15 +297,14 @@ def load_pybaseball_tables(start_year: int = 1900, end_year: int = datetime.now(
     batting_rows: list[dict[str, object]] = []
     pitching_rows: list[dict[str, object]] = []
 
-    if start_year < BREF_RANGE_MIN_YEAR:
-        print(
-            f"Note: pybaseball's batting_stats_bref / pitching_stats_bref only support "
-            f"{BREF_RANGE_MIN_YEAR}+. Skipping {start_year}-{min(end_year, BREF_RANGE_MIN_YEAR - 1)}."
-        )
+    bref_scrape_cache = Path(cache.config.cache_directory) / "career-arc-bref"
 
     for year in range(start_year, end_year + 1):
         if year < BREF_RANGE_MIN_YEAR:
+            batting_rows.extend(_load_pre_2008_year(year, "batting", bref_scrape_cache))
+            pitching_rows.extend(_load_pre_2008_year(year, "pitching", bref_scrape_cache))
             continue
+
         print(f"Loading Baseball Reference batting data for {year}")
         batting_frame = batting_stats_bref(year)
         if batting_frame is not None and not batting_frame.empty:
@@ -331,6 +330,23 @@ def load_pybaseball_tables(start_year: int = 1900, end_year: int = datetime.now(
             pitching_rows.extend(rows)
 
     return batting_rows, pitching_rows
+
+
+def _load_pre_2008_year(year: int, stat_type: str, cache_dir: Path) -> list[dict[str, object]]:
+    """Scrape a single pre-2008 season directly from baseball-reference.com.
+
+    pybaseball's batting_stats_bref / pitching_stats_bref refuse years before
+    2008, so we hit the season's standard-batting / standard-pitching page
+    ourselves. The bref_scrape module honors Crawl-delay: 3 and caches
+    pages on disk so re-runs don't re-fetch.
+    """
+    from .bref_scrape import attach_mlb_ids, scrape_bref_season
+
+    print(f"Loading Baseball Reference {stat_type} data for {year} (direct scrape)")
+    rows = scrape_bref_season(year, stat_type, cache_dir)
+    attach_mlb_ids(rows)
+    # WAR is already on the scraped page; the existing pipeline reads it via STAT_ALIASES.
+    return rows
 
 
 def build_all_players_dataset(
