@@ -32,9 +32,9 @@ METRICS = [
 STAT_ALIASES = {
     "year": ["Season", "season", "year"],
     "team": ["Team", "Tm", "team"],
-    "name": ["Name", "name"],
-    "fangraphs_id": ["IDfg", "key_fangraphs", "fangraphs_id"],
-    "avg": ["AVG", "avg"],
+    "name": ["PlayerName", "Name", "name"],
+    "fangraphs_id": ["mlbID", "playerid", "IDfg", "key_fangraphs", "fangraphs_id"],
+    "avg": ["AVG", "BA", "avg"],
     "hr": ["HR", "hr"],
     "rbi": ["RBI", "rbi"],
     "ops": ["OPS", "ops"],
@@ -276,21 +276,47 @@ def determine_year_range(players: list[object]) -> tuple[int, int]:
     return min(start_years or [2000]), max(end_years or [current_year])
 
 
-def load_pybaseball_tables(start_year: int = 1900, end_year: int = datetime.now().year) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
-    from pybaseball import batting_stats, cache, pitching_stats
+def _build_war_lookup(war_frame) -> dict[tuple[int, int], float]:
+    """Aggregate multi-stint WAR rows into a single (mlb_id, year) -> WAR dict."""
+    valid = war_frame.dropna(subset=["mlb_ID", "year_ID"])
+    totals = valid.groupby(["mlb_ID", "year_ID"])["WAR"].sum()
+    return {(int(mlb_id), int(year)): float(war) for (mlb_id, year), war in totals.items()}
 
-    cache.enable()
+
+def load_pybaseball_tables(start_year: int = 1900, end_year: int = datetime.now().year) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
+    from pybaseball import batting_stats_bref, bwar_bat, bwar_pitch, pitching_stats_bref
+
+    print("Loading Baseball Reference WAR tables...")
+    bat_war_lookup = _build_war_lookup(bwar_bat())
+    pitch_war_lookup = _build_war_lookup(bwar_pitch())
+
     batting_rows: list[dict[str, object]] = []
     pitching_rows: list[dict[str, object]] = []
 
     for year in range(start_year, end_year + 1):
-        print(f"Loading Fangraphs batting data for {year}")
-        batting_frame = batting_stats(year, year, qual=0)
-        batting_rows.extend(batting_frame.to_dict(orient="records"))
+        print(f"Loading Baseball Reference batting data for {year}")
+        batting_frame = batting_stats_bref(year)
+        if batting_frame is not None and not batting_frame.empty:
+            batting_frame = batting_frame[batting_frame["Lev"].str.startswith("Maj", na=False)].copy()
+            batting_frame["Season"] = year
+            rows = batting_frame.to_dict(orient="records")
+            for row in rows:
+                mlb_id = row.get("mlbID")
+                if mlb_id is not None:
+                    row["WAR"] = bat_war_lookup.get((int(mlb_id), year))
+            batting_rows.extend(rows)
 
-        print(f"Loading Fangraphs pitching data for {year}")
-        pitching_frame = pitching_stats(year, year, qual=0)
-        pitching_rows.extend(pitching_frame.to_dict(orient="records"))
+        print(f"Loading Baseball Reference pitching data for {year}")
+        pitching_frame = pitching_stats_bref(year)
+        if pitching_frame is not None and not pitching_frame.empty:
+            pitching_frame = pitching_frame[pitching_frame["Lev"].str.startswith("Maj", na=False)].copy()
+            pitching_frame["Season"] = year
+            rows = pitching_frame.to_dict(orient="records")
+            for row in rows:
+                mlb_id = row.get("mlbID")
+                if mlb_id is not None:
+                    row["WAR"] = pitch_war_lookup.get((int(mlb_id), year))
+            pitching_rows.extend(rows)
 
     return batting_rows, pitching_rows
 
