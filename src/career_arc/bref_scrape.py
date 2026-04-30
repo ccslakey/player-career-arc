@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import re
 import time
+from datetime import date
 from pathlib import Path
 from typing import Iterable
 
@@ -91,8 +92,9 @@ def scrape_bref_season(year: int, stat_type: str, cache_dir: Path | str) -> list
     else:
         raise ValueError(f"Unknown stat_type: {stat_type}")
 
+    current_year = date.today().year
     url = f"{BREF_BASE}/leagues/majors/{year}-{slug}.shtml"
-    html = _fetch_with_cache(url, Path(cache_dir))
+    html = _fetch_with_cache(url, Path(cache_dir), bypass_cache=(year >= current_year))
     rows = _parse_player_table(html, table_id, field_map)
 
     for row in rows:
@@ -139,14 +141,17 @@ def attach_mlb_ids(rows: list[dict[str, object]]) -> list[dict[str, object]]:
     return rows
 
 
-def _fetch_with_cache(url: str, cache_dir: Path) -> str:
+def _fetch_with_cache(url: str, cache_dir: Path, bypass_cache: bool = False) -> str:
     """Disk-cached GET. Honors BREF_CRAWL_DELAY_SECONDS only on real fetches —
-    cache hits return immediately. Failed fetches raise; do not cache failures."""
+    cache hits return immediately. Failed fetches raise; do not cache failures.
+
+    Pass bypass_cache=True to skip a stale-but-present cache entry (used for the
+    current season whose page bref updates daily)."""
     cache_dir.mkdir(parents=True, exist_ok=True)
     safe_name = re.sub(r"[^A-Za-z0-9_.-]+", "_", url)
     cache_path = cache_dir / f"{safe_name}.html"
 
-    if cache_path.exists():
+    if cache_path.exists() and not bypass_cache:
         return cache_path.read_text(encoding="utf-8")
 
     response = requests.get(
