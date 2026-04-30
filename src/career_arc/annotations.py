@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import re
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -12,6 +13,7 @@ import requests
 
 MLB_TRANSACTIONS_ENDPOINT = "https://statsapi.mlb.com/api/v1/transactions"
 DEFAULT_INJURY_START_YEAR = 2002
+MLB_TRANSACTIONS_CONCURRENCY = 4
 
 IL_PATTERN = re.compile(r"(?:injured list|(?:7|10|15|60)-day il)", re.IGNORECASE)
 ACTIVATION_PATTERN = re.compile(r"\b(?:activated|reinstated|returned)\b", re.IGNORECASE)
@@ -174,22 +176,28 @@ def fetch_bulk_transaction_injury_events(
         return {}, stats
 
     by_player: dict[int, list[dict[str, object]]] = {}
-    total_years = (end_year - query_start_year) + 1
-    for index, year in enumerate(range(query_start_year, end_year + 1), start=1):
-        stats.years_requested += 1
-        if progress_logger is not None:
-            progress_logger(
-                f"[annotations] MLB transactions {index}/{total_years}: requesting {year}"
-            )
+    years = list(range(query_start_year, end_year + 1))
+    total_years = len(years)
+    stats.years_requested = total_years
+
+    def fetch_year(year: int) -> tuple[int, str, dict[str, object]]:
         query_params = {
             "sportId": 1,
             "startDate": f"{year}-01-01",
             "endDate": f"{year}-12-31",
         }
-        query = urlencode(query_params)
-        source_url = f"{MLB_TRANSACTIONS_ENDPOINT}?{query}"
-        payload = safe_fetch_json(source_url, fetcher)
+        source_url = f"{MLB_TRANSACTIONS_ENDPOINT}?{urlencode(query_params)}"
+        return year, source_url, safe_fetch_json(source_url, fetcher)
 
+    with ThreadPoolExecutor(max_workers=MLB_TRANSACTIONS_CONCURRENCY) as executor:
+        results = list(executor.map(fetch_year, years))
+
+    # Process results in year order so logs and event ordering stay deterministic.
+    for index, (year, source_url, payload) in enumerate(results, start=1):
+        if progress_logger is not None:
+            progress_logger(
+                f"[annotations] MLB transactions {index}/{total_years}: processing {year}"
+            )
         transactions = payload.get("transactions")
         if not isinstance(transactions, list):
             stats.years_failed += 1
