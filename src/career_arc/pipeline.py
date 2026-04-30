@@ -32,9 +32,9 @@ METRICS = [
 STAT_ALIASES = {
     "year": ["Season", "season", "year"],
     "team": ["Team", "Tm", "team"],
-    "name": ["Name", "name"],
-    "fangraphs_id": ["IDfg", "key_fangraphs", "fangraphs_id"],
-    "avg": ["AVG", "avg"],
+    "name": ["PlayerName", "Name", "name"],
+    "fangraphs_id": ["mlbID", "playerid", "IDfg", "key_fangraphs", "fangraphs_id"],
+    "avg": ["AVG", "BA", "avg"],
     "hr": ["HR", "hr"],
     "rbi": ["RBI", "rbi"],
     "ops": ["OPS", "ops"],
@@ -147,7 +147,9 @@ def apply_annotations_to_dataset(
         if log is not None:
             log(f"[annotations] Loaded {len(players)} players from {dataset_path}.")
 
-        annotatable_players = 0
+        # Single pass: collect everything needed for the bulk fetch AND for enrichment.
+        # Storing the pre-validated tuples avoids re-scanning and re-calling .get() in a second loop.
+        annotatable: list[tuple[str, list[dict[str, object]], int | None, str]] = []
         players_with_mlbam = 0
         min_year: int | None = None
         max_year: int | None = None
@@ -160,8 +162,7 @@ def apply_annotations_to_dataset(
             if not player_name or not isinstance(seasons, list):
                 continue
 
-            annotatable_players += 1
-            season_years = [year for year in (_coerce_int(season.get("year")) for season in seasons) if year is not None]
+            season_years = [y for y in (_coerce_int(s.get("year")) for s in seasons) if y is not None]
             if season_years:
                 player_min = min(season_years)
                 player_max = max(season_years)
@@ -173,9 +174,11 @@ def apply_annotations_to_dataset(
                 players_with_mlbam += 1
                 mlbam_ids.add(mlbam_id)
 
+            annotatable.append((player_name, seasons, mlbam_id, player_history_id(player)))
+
         if log is not None:
             log(
-                f"[annotations] Annotating {annotatable_players} players "
+                f"[annotations] Annotating {len(annotatable)} players "
                 f"({players_with_mlbam} with MLBAM ids)."
             )
 
@@ -205,38 +208,24 @@ def apply_annotations_to_dataset(
             log("[annotations] Skipping injury prefetch (no eligible MLBAM ids/year range).")
 
         progress_start = time.monotonic()
-        progress_processed = 0
-        for player in players:
-            if not isinstance(player, dict):
-                continue
-
-            player_name = str(player.get("name") or "").strip()
-            if not player_name:
-                continue
-
-            seasons = player.get("seasons")
-            if not isinstance(seasons, list):
-                continue
-
+        for progress_processed, (player_name, seasons, mlbam_id, history_id) in enumerate(annotatable, start=1):
             seasons.sort(key=_season_sort_key)
-            mlbam_id = _coerce_int(player.get("mlbam_id"))
             enrich_seasons_with_annotations(
                 player_name=player_name,
                 seasons=seasons,
                 annotation_index=annotation_index,
-                player_id=player_history_id(player),
+                player_id=history_id,
                 mlbam_id=mlbam_id,
                 prefetched_injury_events=prefetched_injuries.get(mlbam_id, []),
             )
-            progress_processed += 1
             if log is not None:
                 _print_progress(
                     prefix="Player annotations",
                     current=progress_processed,
-                    total=annotatable_players,
+                    total=len(annotatable),
                     started_at=progress_start,
                 )
-        if log is not None and annotatable_players:
+        if log is not None and annotatable:
             _finish_progress()
 
     metadata = dataset.get("metadata")
@@ -276,23 +265,86 @@ def determine_year_range(players: list[object]) -> tuple[int, int]:
     return min(start_years or [2000]), max(end_years or [current_year])
 
 
+def _build_war_lookup(war_frame) -> dict[tuple[int, int], float]:
+    """Aggregate multi-stint WAR rows into a single (mlb_id, year) -> WAR dict."""
+    valid = war_frame.dropna(subset=["mlb_ID", "year_ID"])
+    totals = valid.groupby(["mlb_ID", "year_ID"])["WAR"].sum()
+    return {(int(mlb_id), int(year)): float(war) for (mlb_id, year), war in totals.items()}
+
+
+BREF_RANGE_MIN_YEAR = 2008
+
+
 def load_pybaseball_tables(start_year: int = 1900, end_year: int = datetime.now().year) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
-    from pybaseball import batting_stats, cache, pitching_stats
+    from pybaseball import cache
 
     cache.enable()
+
+    needs_bref_lookup = end_year >= BREF_RANGE_MIN_YEAR
+    bat_war_lookup: dict[tuple[int, int], float] = {}
+    pitch_war_lookup: dict[tuple[int, int], float] = {}
+    if needs_bref_lookup:
+        from pybaseball import batting_stats_bref, bwar_bat, bwar_pitch, pitching_stats_bref
+        print("Loading Baseball Reference WAR tables...")
+        bat_war_lookup = _build_war_lookup(bwar_bat())
+        pitch_war_lookup = _build_war_lookup(bwar_pitch())
+
     batting_rows: list[dict[str, object]] = []
     pitching_rows: list[dict[str, object]] = []
 
-    for year in range(start_year, end_year + 1):
-        print(f"Loading Fangraphs batting data for {year}")
-        batting_frame = batting_stats(year, year, qual=0)
-        batting_rows.extend(batting_frame.to_dict(orient="records"))
+    bref_scrape_cache = Path(cache.config.cache_directory) / "career-arc-bref"
 
-        print(f"Loading Fangraphs pitching data for {year}")
-        pitching_frame = pitching_stats(year, year, qual=0)
-        pitching_rows.extend(pitching_frame.to_dict(orient="records"))
+    for year in range(start_year, end_year + 1):
+        if year < BREF_RANGE_MIN_YEAR:
+            batting_rows.extend(_load_pre_2008_year(year, "batting", bref_scrape_cache))
+            pitching_rows.extend(_load_pre_2008_year(year, "pitching", bref_scrape_cache))
+            continue
+
+        print(f"Loading Baseball Reference batting data for {year}")
+        batting_frame = batting_stats_bref(year)
+        if batting_frame is not None and not batting_frame.empty:
+            batting_frame = batting_frame[batting_frame["Lev"].str.startswith("Maj", na=False)].copy()
+            batting_frame["Season"] = year
+            rows = batting_frame.to_dict(orient="records")
+            for row in rows:
+                mlb_id = row.get("mlbID")
+                if mlb_id is not None:
+                    row["WAR"] = bat_war_lookup.get((int(mlb_id), year))
+                _normalize_row(row)
+            batting_rows.extend(rows)
+
+        print(f"Loading Baseball Reference pitching data for {year}")
+        pitching_frame = pitching_stats_bref(year)
+        if pitching_frame is not None and not pitching_frame.empty:
+            pitching_frame = pitching_frame[pitching_frame["Lev"].str.startswith("Maj", na=False)].copy()
+            pitching_frame["Season"] = year
+            rows = pitching_frame.to_dict(orient="records")
+            for row in rows:
+                mlb_id = row.get("mlbID")
+                if mlb_id is not None:
+                    row["WAR"] = pitch_war_lookup.get((int(mlb_id), year))
+                _normalize_row(row)
+            pitching_rows.extend(rows)
 
     return batting_rows, pitching_rows
+
+
+def _load_pre_2008_year(year: int, stat_type: str, cache_dir: Path) -> list[dict[str, object]]:
+    """Scrape a single pre-2008 season directly from baseball-reference.com.
+
+    pybaseball's batting_stats_bref / pitching_stats_bref refuse years before
+    2008, so we hit the season's standard-batting / standard-pitching page
+    ourselves. The bref_scrape module honors Crawl-delay: 3 and caches
+    pages on disk so re-runs don't re-fetch.
+    """
+    from .bref_scrape import attach_mlb_ids, scrape_bref_season
+
+    print(f"Loading Baseball Reference {stat_type} data for {year} (direct scrape)")
+    rows = scrape_bref_season(year, stat_type, cache_dir)
+    attach_mlb_ids(rows)
+    for row in rows:
+        _normalize_row(row)
+    return rows
 
 
 def build_all_players_dataset(
@@ -843,6 +895,18 @@ def player_history_id(player: dict[str, object]) -> str:
 
 def slugify(value: str) -> str:
     return "-".join(value.lower().split())
+
+
+def _normalize_row(row: dict[str, object]) -> dict[str, object]:
+    """Rewrite alias column names to their canonical key so _pick is a direct lookup."""
+    for canonical, aliases in STAT_ALIASES.items():
+        if canonical in row:
+            continue
+        for alias in aliases:
+            if alias in row:
+                row[canonical] = row[alias]
+                break
+    return row
 
 
 def _pick(row: dict[str, object] | None, field: str) -> object:

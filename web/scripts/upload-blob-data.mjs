@@ -1,10 +1,12 @@
-import {BlobServiceNotAvailable, BlobServiceRateLimited, BlobUnknownError, put} from "@vercel/blob";
+import {BlobServiceNotAvailable, BlobServiceRateLimited, BlobUnknownError, head, put} from "@vercel/blob";
+import {createHash} from "node:crypto";
 import {readdir, readFile, stat} from "node:fs/promises";
 import {relative, resolve, sep} from "node:path";
 
 const webRoot = resolve(import.meta.dirname, "..");
 const MANIFEST_FILE = "players_manifest.json";
 const DATA_VERSION_FILE = "data-version.json";
+const CHECKSUMS_FILE = "checksums.json";
 const DEFAULT_MAX_UPLOAD_ATTEMPTS = 6;
 const DEFAULT_BASE_BACKOFF_MS = 500;
 const DEFAULT_MAX_BACKOFF_MS = 30_000;
@@ -39,6 +41,26 @@ const dataVersionPayload = await buildDataVersionPayload({
   prefix: normalizedPrefix
 });
 
+const fileEntries = await Promise.all(jsonFiles.map(async (filePath) => {
+  const relativePath = relative(sourceDir, filePath).split(sep).join("/");
+  const payload = await readFile(filePath);
+  const sha256 = createHash("sha256").update(payload).digest("hex");
+  return {filePath, relativePath, payload, sha256};
+}));
+
+const newChecksums = Object.fromEntries(fileEntries.map(({relativePath, sha256}) => [relativePath, sha256]));
+const previousChecksums = options.force ? {} : await fetchPreviousChecksums(normalizedPrefix);
+
+const uploadQueue = fileEntries.filter(({relativePath, sha256}) => {
+  if (relativePath === CHECKSUMS_FILE) return false;
+  return previousChecksums[relativePath] !== sha256;
+});
+const skippedCount = fileEntries.length - uploadQueue.length;
+
+console.log(
+  `Hashed ${fileEntries.length} files; ${uploadQueue.length} changed, ${skippedCount} unchanged (skipped).`
+);
+
 let manifestUrl = null;
 let versionUrl = null;
 let uploaded = 0;
@@ -54,22 +76,36 @@ if (failed > 0) {
 
 if (options.dryRun) {
   console.log(`[dry-run] ${DATA_VERSION_FILE} -> ${normalizedPrefix}/${DATA_VERSION_FILE}`);
-  uploaded += 1;
+  console.log(`[dry-run] ${CHECKSUMS_FILE} -> ${normalizedPrefix}/${CHECKSUMS_FILE}`);
+  uploaded += 2;
 } else {
-  const cacheControlMaxAge = cacheTtl(DATA_VERSION_FILE, mutablePrefix);
-  const result = await putWithRetries({
+  const versionCacheTtl = cacheTtl(DATA_VERSION_FILE, mutablePrefix);
+  const versionResult = await putWithRetries({
     blobPath: `${normalizedPrefix}/${DATA_VERSION_FILE}`,
     relativePath: DATA_VERSION_FILE,
     payload: JSON.stringify(dataVersionPayload),
-    cacheControlMaxAge,
+    cacheControlMaxAge: versionCacheTtl,
     token
   });
-  versionUrl = result.url;
+  versionUrl = versionResult.url;
   uploaded += 1;
-  console.log(`[upload] ${DATA_VERSION_FILE} -> ${normalizedPrefix}/${DATA_VERSION_FILE} (ttl ${cacheControlMaxAge}s)`);
+  console.log(`[upload] ${DATA_VERSION_FILE} -> ${normalizedPrefix}/${DATA_VERSION_FILE} (ttl ${versionCacheTtl}s)`);
+
+  const checksumsCacheTtl = cacheTtl(CHECKSUMS_FILE, mutablePrefix);
+  await putWithRetries({
+    blobPath: `${normalizedPrefix}/${CHECKSUMS_FILE}`,
+    relativePath: CHECKSUMS_FILE,
+    payload: JSON.stringify(newChecksums),
+    cacheControlMaxAge: checksumsCacheTtl,
+    token
+  });
+  uploaded += 1;
+  console.log(`[upload] ${CHECKSUMS_FILE} -> ${normalizedPrefix}/${CHECKSUMS_FILE} (ttl ${checksumsCacheTtl}s)`);
 }
 
-console.log(`Uploaded ${uploaded} JSON files to prefix "${normalizedPrefix}".`);
+console.log(
+  `Uploaded ${uploaded} JSON files to prefix "${normalizedPrefix}" (${skippedCount} skipped via checksum match).`
+);
 
 if (manifestUrl || versionUrl) {
   const baseUrl = (manifestUrl ?? versionUrl).replace(/\/[^/]+$/, "");
@@ -80,12 +116,11 @@ async function runWorker() {
   while (true) {
     const fileIndex = nextIndex;
     nextIndex += 1;
-    if (fileIndex >= jsonFiles.length) {
+    if (fileIndex >= uploadQueue.length) {
       return;
     }
 
-    const filePath = jsonFiles[fileIndex];
-    const relativePath = relative(sourceDir, filePath).split(sep).join("/");
+    const {relativePath, payload} = uploadQueue[fileIndex];
     const blobPath = `${normalizedPrefix}/${relativePath}`;
     const cacheControlMaxAge = cacheTtl(relativePath, mutablePrefix);
 
@@ -93,7 +128,6 @@ async function runWorker() {
       if (options.dryRun) {
         console.log(`[dry-run] ${relativePath} -> ${blobPath}`);
       } else {
-        const payload = await readFile(filePath);
         const result = await putWithRetries({
           blobPath,
           relativePath,
@@ -114,6 +148,27 @@ async function runWorker() {
       failed += 1;
       console.error(`[error] Failed upload for ${relativePath}:`, error);
     }
+  }
+}
+
+async function fetchPreviousChecksums(prefix) {
+  const checksumsBlobPath = `${prefix}/${CHECKSUMS_FILE}`;
+  try {
+    const meta = await head(checksumsBlobPath, {token});
+    const response = await fetch(meta.url, {cache: "no-store"});
+    if (!response.ok) {
+      console.warn(`[checksums] Could not fetch existing checksums (status ${response.status}); uploading everything.`);
+      return {};
+    }
+    const parsed = await response.json();
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      console.log(`[checksums] Loaded ${Object.keys(parsed).length} prior checksums from ${checksumsBlobPath}.`);
+      return parsed;
+    }
+    return {};
+  } catch (error) {
+    console.log(`[checksums] No prior ${CHECKSUMS_FILE} found at ${checksumsBlobPath}; uploading everything (${errorSummary(error)}).`);
+    return {};
   }
 }
 
@@ -187,7 +242,7 @@ function sleep(ms) {
 }
 
 function cacheTtl(relativePath, mutable) {
-  if (relativePath === MANIFEST_FILE || relativePath === DATA_VERSION_FILE) {
+  if (relativePath === MANIFEST_FILE || relativePath === DATA_VERSION_FILE || relativePath === CHECKSUMS_FILE) {
     return mutable ? 60 : 31536000;
   }
   if (relativePath.startsWith("player-history/")) {
@@ -273,6 +328,7 @@ function parseArgs(argv) {
     endYear: "",
     token: "",
     dryRun: false,
+    force: false,
     help: false
   };
 
@@ -299,6 +355,9 @@ function parseArgs(argv) {
         break;
       case "--dry-run":
         parsed.dryRun = true;
+        break;
+      case "--force":
+        parsed.force = true;
         break;
       case "--help":
       case "-h":
@@ -336,6 +395,7 @@ Options:
   --end-year <year>      Optional metadata value written to data-version.json
   --token <token>        Vercel Blob read/write token (or use BLOB_READ_WRITE_TOKEN env var)
   --dry-run              Show planned uploads without writing blobs
+  --force                Upload all files regardless of checksum match
   --help                 Show help
 `);
 }
