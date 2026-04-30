@@ -287,12 +287,18 @@ BREF_RANGE_MIN_YEAR = 2008
 
 
 def load_pybaseball_tables(start_year: int = 1900, end_year: int = datetime.now().year) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
-    from pybaseball import batting_stats_bref, bwar_bat, bwar_pitch, cache, pitching_stats_bref
+    from pybaseball import cache
 
     cache.enable()
-    print("Loading Baseball Reference WAR tables...")
-    bat_war_lookup = _build_war_lookup(bwar_bat())
-    pitch_war_lookup = _build_war_lookup(bwar_pitch())
+
+    needs_bref_lookup = end_year >= BREF_RANGE_MIN_YEAR
+    bat_war_lookup: dict[tuple[int, int], float] = {}
+    pitch_war_lookup: dict[tuple[int, int], float] = {}
+    if needs_bref_lookup:
+        from pybaseball import batting_stats_bref, bwar_bat, bwar_pitch, pitching_stats_bref
+        print("Loading Baseball Reference WAR tables...")
+        bat_war_lookup = _build_war_lookup(bwar_bat())
+        pitch_war_lookup = _build_war_lookup(bwar_pitch())
 
     batting_rows: list[dict[str, object]] = []
     pitching_rows: list[dict[str, object]] = []
@@ -315,6 +321,7 @@ def load_pybaseball_tables(start_year: int = 1900, end_year: int = datetime.now(
                 mlb_id = row.get("mlbID")
                 if mlb_id is not None:
                     row["WAR"] = bat_war_lookup.get((int(mlb_id), year))
+                _normalize_row(row)
             batting_rows.extend(rows)
 
         print(f"Loading Baseball Reference pitching data for {year}")
@@ -327,6 +334,7 @@ def load_pybaseball_tables(start_year: int = 1900, end_year: int = datetime.now(
                 mlb_id = row.get("mlbID")
                 if mlb_id is not None:
                     row["WAR"] = pitch_war_lookup.get((int(mlb_id), year))
+                _normalize_row(row)
             pitching_rows.extend(rows)
 
     return batting_rows, pitching_rows
@@ -345,7 +353,8 @@ def _load_pre_2008_year(year: int, stat_type: str, cache_dir: Path) -> list[dict
     print(f"Loading Baseball Reference {stat_type} data for {year} (direct scrape)")
     rows = scrape_bref_season(year, stat_type, cache_dir)
     attach_mlb_ids(rows)
-    # WAR is already on the scraped page; the existing pipeline reads it via STAT_ALIASES.
+    for row in rows:
+        _normalize_row(row)
     return rows
 
 
@@ -897,6 +906,18 @@ def player_history_id(player: dict[str, object]) -> str:
 
 def slugify(value: str) -> str:
     return "-".join(value.lower().split())
+
+
+def _normalize_row(row: dict[str, object]) -> dict[str, object]:
+    """Rewrite alias column names to their canonical key so _pick is a direct lookup."""
+    for canonical, aliases in STAT_ALIASES.items():
+        if canonical in row:
+            continue
+        for alias in aliases:
+            if alias in row:
+                row[canonical] = row[alias]
+                break
+    return row
 
 
 def _pick(row: dict[str, object] | None, field: str) -> object:
