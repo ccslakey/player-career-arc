@@ -283,6 +283,9 @@ def _build_war_lookup(war_frame) -> dict[tuple[int, int], float]:
     return {(int(mlb_id), int(year)): float(war) for (mlb_id, year), war in totals.items()}
 
 
+BREF_RANGE_MIN_YEAR = 2008
+
+
 def load_pybaseball_tables(start_year: int = 1900, end_year: int = datetime.now().year) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
     from pybaseball import batting_stats_bref, bwar_bat, bwar_pitch, cache, pitching_stats_bref
 
@@ -294,7 +297,15 @@ def load_pybaseball_tables(start_year: int = 1900, end_year: int = datetime.now(
     batting_rows: list[dict[str, object]] = []
     pitching_rows: list[dict[str, object]] = []
 
+    if start_year < BREF_RANGE_MIN_YEAR:
+        print(
+            f"Note: pybaseball's batting_stats_bref / pitching_stats_bref only support "
+            f"{BREF_RANGE_MIN_YEAR}+. Skipping {start_year}-{min(end_year, BREF_RANGE_MIN_YEAR - 1)}."
+        )
+
     for year in range(start_year, end_year + 1):
+        if year < BREF_RANGE_MIN_YEAR:
+            continue
         print(f"Loading Baseball Reference batting data for {year}")
         batting_frame = batting_stats_bref(year)
         if batting_frame is not None and not batting_frame.empty:
