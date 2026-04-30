@@ -147,7 +147,9 @@ def apply_annotations_to_dataset(
         if log is not None:
             log(f"[annotations] Loaded {len(players)} players from {dataset_path}.")
 
-        annotatable_players = 0
+        # Single pass: collect everything needed for the bulk fetch AND for enrichment.
+        # Storing the pre-validated tuples avoids re-scanning and re-calling .get() in a second loop.
+        annotatable: list[tuple[str, list[dict[str, object]], int | None, str]] = []
         players_with_mlbam = 0
         min_year: int | None = None
         max_year: int | None = None
@@ -160,8 +162,7 @@ def apply_annotations_to_dataset(
             if not player_name or not isinstance(seasons, list):
                 continue
 
-            annotatable_players += 1
-            season_years = [year for year in (_coerce_int(season.get("year")) for season in seasons) if year is not None]
+            season_years = [y for y in (_coerce_int(s.get("year")) for s in seasons) if y is not None]
             if season_years:
                 player_min = min(season_years)
                 player_max = max(season_years)
@@ -173,9 +174,11 @@ def apply_annotations_to_dataset(
                 players_with_mlbam += 1
                 mlbam_ids.add(mlbam_id)
 
+            annotatable.append((player_name, seasons, mlbam_id, player_history_id(player)))
+
         if log is not None:
             log(
-                f"[annotations] Annotating {annotatable_players} players "
+                f"[annotations] Annotating {len(annotatable)} players "
                 f"({players_with_mlbam} with MLBAM ids)."
             )
 
@@ -205,38 +208,24 @@ def apply_annotations_to_dataset(
             log("[annotations] Skipping injury prefetch (no eligible MLBAM ids/year range).")
 
         progress_start = time.monotonic()
-        progress_processed = 0
-        for player in players:
-            if not isinstance(player, dict):
-                continue
-
-            player_name = str(player.get("name") or "").strip()
-            if not player_name:
-                continue
-
-            seasons = player.get("seasons")
-            if not isinstance(seasons, list):
-                continue
-
+        for progress_processed, (player_name, seasons, mlbam_id, history_id) in enumerate(annotatable, start=1):
             seasons.sort(key=_season_sort_key)
-            mlbam_id = _coerce_int(player.get("mlbam_id"))
             enrich_seasons_with_annotations(
                 player_name=player_name,
                 seasons=seasons,
                 annotation_index=annotation_index,
-                player_id=player_history_id(player),
+                player_id=history_id,
                 mlbam_id=mlbam_id,
                 prefetched_injury_events=prefetched_injuries.get(mlbam_id, []),
             )
-            progress_processed += 1
             if log is not None:
                 _print_progress(
                     prefix="Player annotations",
                     current=progress_processed,
-                    total=annotatable_players,
+                    total=len(annotatable),
                     started_at=progress_start,
                 )
-        if log is not None and annotatable_players:
+        if log is not None and annotatable:
             _finish_progress()
 
     metadata = dataset.get("metadata")
