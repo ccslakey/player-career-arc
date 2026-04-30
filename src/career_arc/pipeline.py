@@ -284,8 +284,9 @@ def _build_war_lookup(war_frame) -> dict[tuple[int, int], float]:
 
 
 def load_pybaseball_tables(start_year: int = 1900, end_year: int = datetime.now().year) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
-    from pybaseball import batting_stats_bref, bwar_bat, bwar_pitch, pitching_stats_bref
+    from pybaseball import batting_stats_bref, bwar_bat, bwar_pitch, cache, pitching_stats_bref
 
+    cache.enable()
     print("Loading Baseball Reference WAR tables...")
     bat_war_lookup = _build_war_lookup(bwar_bat())
     pitch_war_lookup = _build_war_lookup(bwar_pitch())
